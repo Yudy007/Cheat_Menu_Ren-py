@@ -29,14 +29,6 @@
 2. Thả trực tiếp vào thư mục `game/` của game Ren'Py.
 3. Mở game lên và chơi ngay lập tức (không cần cài đặt gì thêm).
 
-### Dành cho Chủ sở hữu / Modder (Đẩy bản sửa lỗi lên GitHub):
-1. Truy cập [GitHub Settings Tokens](https://github.com/settings/tokens) và tạo một **Personal Access Token (PAT)**:
-   - Chọn quyền: `repo` (hoặc Repository permissions: `Contents: Read and write`).
-2. Lưu token vào file `github_token.txt` trong thư mục `game/` (hoặc thư mục gốc của game).
-3. Khi bạn sửa code hoặc game tự sửa lỗi:
-   - Nhấn <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F12</kbd> (hoặc bấm nút **🚀 Đẩy bản sửa lỗi lên GitHub** trong Bảng Cứu Hộ).
-   - Hệ thống sẽ tự động gọi GitHub API để cập nhật file `cheat_menu.rpy` trực tiếp lên kho!
-
 ---
 
 ## ⌨️ Phím Tắt Tiện Ích Trong Game
