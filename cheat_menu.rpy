@@ -848,14 +848,52 @@ init -999 python:
     # --------------------------------------------------------------------------
     def cheat_find_unicode_font():
         """
-        Tự động chuẩn bị và cô lập font chữ độc lập tuyệt đối cho Cheat Menu.
-        Không bao giờ bị ảnh hưởng hoặc lấy nhầm font của game khác.
+        Tự động thiết lập và sử dụng trực tiếp font.ttf độc lập tuyệt đối cho Cheat Menu.
+        Đảm bảo hiển thị hoàn hảo mọi ngôn ngữ và không bao giờ bị ảnh hưởng bởi font của game.
         """
         g_dir = _safe_get_config('gamedir', '.') or '.'
-        target_font_name = "cheat_menu_isolated.ttf"
+        target_font_name = "font.ttf"
         target_font_path = os.path.join(g_dir, target_font_name)
 
-        # 1. Nếu file font cô lập chưa có trong game folder, tự động sao chép font chuẩn hệ thống
+        # 1. Tự động phát hiện và sao chép font.ttf vào gamedir nếu có ở thư mục script hoặc thư mục gốc
+        if not (os.path.isfile(target_font_path) and os.path.getsize(target_font_path) > 1000):
+            candidate_dirs = []
+            try:
+                if '__file__' in globals() and __file__:
+                    candidate_dirs.append(os.path.dirname(os.path.abspath(__file__)))
+            except Exception:
+                pass
+            try:
+                candidate_dirs.append(os.path.abspath('.'))
+                candidate_dirs.append(os.path.join(os.path.abspath('.'), 'game'))
+            except Exception:
+                pass
+
+            for c_dir in candidate_dirs:
+                if not c_dir:
+                    continue
+                cand_path = os.path.join(c_dir, target_font_name)
+                if os.path.isfile(cand_path) and os.path.getsize(cand_path) > 1000:
+                    try:
+                        import shutil
+                        shutil.copyfile(cand_path, target_font_path)
+                        break
+                    except Exception:
+                        pass
+
+        # 2. Nếu file font.ttf tồn tại trong gamedir hoặc có thể nạp qua renpy.loadable, dùng ngay!
+        if (os.path.isfile(target_font_path) and os.path.getsize(target_font_path) > 1000) or renpy.loadable(target_font_name):
+            return target_font_name
+
+        # Thử tìm trong các thư mục con thường gặp như fonts/font.ttf, cheat_menu/font.ttf
+        for sub_f in ("fonts/font.ttf", "cheat_menu/font.ttf"):
+            try:
+                if renpy.loadable(sub_f):
+                    return sub_f
+            except Exception:
+                pass
+
+        # 3. DỰ PHÒNG KHẨN CẤP: Nếu chưa có font.ttf, tự động sao chép font hệ thống thành font.ttf
         if not os.path.exists(target_font_path):
             copied = False
             if sys.platform == 'win32':
@@ -881,11 +919,10 @@ init -999 python:
                         except Exception:
                             pass
 
-        # 2. Nếu file font cô lập tồn tại hoặc loadable, dùng ngay
         if os.path.exists(target_font_path) or renpy.loadable(target_font_name):
             return target_font_name
 
-        # 3. Fallback sang các font chuẩn Ren'Py có sẵn
+        # 4. Fallback sang các font chuẩn Ren'Py có sẵn
         for f in ("DejaVuSans.ttf", "Cinzel-Regular.ttf", "Cinzel.ttf"):
             try:
                 if renpy.loadable(f):
@@ -897,6 +934,15 @@ init -999 python:
 
     cheat_font = cheat_find_unicode_font()
 
+    def cheat_truncate_single_line(val, max_len=16):
+        """Chuyển chuỗi thành 1 dòng duy nhất, nếu dài quá thì cắt và thêm dấu ... an toàn Unicode."""
+        if not val:
+            return u""
+        s = _safe_unicode(val).replace(u'\r\n', u' ').replace(u'\n', u' ').replace(u'\r', u' ').strip()
+        if len(s) > max_len:
+            return s[:max_len - 2] + u"..."
+        return s
+
     def cheat_setup_isolated_styles():
         """
         Thiết lập toàn bộ style của Cheat Menu kế thừa trực tiếp từ style.empty.
@@ -904,8 +950,7 @@ init -999 python:
         hay font/padding/margin của bất kỳ game nào.
         """
         global cheat_font
-        if not cheat_font:
-            cheat_font = cheat_find_unicode_font()
+        cheat_font = cheat_find_unicode_font()
 
         styles_to_init = (
             'cheat_default', 'cheat_text', 'cheat_button', 'cheat_button_text',
@@ -1065,18 +1110,389 @@ init -999 python:
         persistent.cm_single_key_shortcuts = True
     if getattr(persistent, 'cm_auto_recover_crash', None) is None:
         persistent.cm_auto_recover_crash = True
+    if getattr(persistent, 'cm_language', None) is None:
+        persistent.cm_language = 'en'
+
+    # --------------------------------------------------------------------------
+    # 2.1. HỆ THỐNG ĐA NGÔN NGỮ (LOCALIZATION ENGINE: EN / VI)
+    # --------------------------------------------------------------------------
+    CHEAT_LANGUAGES = [
+        ('en', 'English', 'EN'),
+        ('vi', u'Tiếng Việt', 'VI'),
+    ]
+
+    CHEAT_STRINGS = {
+        'en': {
+            'title': 'CHEAT ENGINE & HIDESKIP PRO 3.1',
+            'ui_size': 'UI Scale:',
+            'close': 'X CLOSE',
+            'language': 'Language',
+            'select_language': 'Select Interface Language',
+            'save': 'Save',
+            'cancel': 'Cancel',
+            'refresh': u'🔄 Refresh',
+            'clear': 'Clear',
+            'locked': 'LOCKED',
+            'lock': 'Lock',
+            'tab_vars': 'Variables (Vars)',
+            'tab_labels': 'Jump Scene (Labels)',
+            'tab_unlocks': 'Unlocks & System',
+            'tab_translate': 'AI Translate (AI_trans_pry)',
+            'tab_help': 'Hotkeys & Help',
+            'novel_controls': 'NOVEL CONTROLS',
+            'hide_ui': 'Hide (H)',
+            'skip': 'Skip (S)',
+            'auto': 'Auto (A)',
+            'log': 'Log (L)',
+            'game_data': 'GAME DATA',
+            'q_save': 'Q.Save',
+            'q_load': 'Q.Load',
+            'cheat_engine': 'CHEAT ENGINE',
+            'cheat_menu_btn': 'Cheat Menu',
+            'ai_trans_on': 'AI Trans: ON',
+            'ai_trans_off': 'AI Trans: OFF',
+            'wheel_log': 'Wheel: Open Log (Safe)',
+            'wheel_lock': 'Wheel: Lock Rollback',
+            'wheel_default': 'Wheel: Game Default',
+            'filter': 'Filter:',
+            'filter_all': 'All',
+            'filter_num': 'Stats (Num)',
+            'filter_bool': 'Flags (Bool)',
+            'filter_str': 'Strings (Str)',
+            'step_val': 'Step:',
+            'search_var': 'Search stats/vars:',
+            'search_label': 'Search:',
+            'editing_num': 'Editing number...',
+            'no_vars_found': 'No matching game variables found.',
+            'empty_str': '(Empty / "")',
+            'bool_true': 'ON (True)',
+            'bool_false': 'OFF (False)',
+            'edit_str': 'Edit Text',
+            'clear_str': 'Clear',
+            'game_object': '(Game Object)',
+            'total_vars': 'Total: %d variables',
+            'page_prev': '< Previous',
+            'page_next': 'Next >',
+            'page_info_vars': 'Page %d / %d (Total %d vars)',
+            'search_scene': 'Search scenes (Labels):',
+            'total_labels': 'Total: %d labels',
+            'no_labels_found': 'No matching scenes (labels) found.',
+            'jump_btn': '> Jump',
+            'call_btn': '> Call',
+            'page_info_labels': 'Page %d / %d (Total %d labels)',
+            'lang_section_title': 'Cheat Menu Language',
+            'lang_section_desc': 'Choose your preferred language for the Cheat Menu interface. Changes apply immediately.',
+            'gallery_title': 'Unlock All CG & Gallery',
+            'gallery_desc': 'Automatically unlock all CG images, scenes, and persistent Gallery/Replay flags.',
+            'gallery_btn': 'UNLOCK ALL GALLERY & CG NOW',
+            'dev_title': 'Developer Console Mode',
+            'dev_desc': "Unlock Shift + O shortcut to open Ren'Py native Python interactive console.",
+            'dev_active': 'Status: ACTIVE',
+            'dev_inactive': 'Status: INACTIVE',
+            'dev_btn': 'Enable Developer Mode',
+            'skip_title': 'Force Skip Unseen Text',
+            'skip_desc': 'Allow fast-forwarding through all dialogue, including unread/unseen text without stopping.',
+            'skip_btn': 'Enable Permanent Force Skip',
+            'wheel_title': 'Mouse Wheel Protection & Anti-Crash (Rollback Fix)',
+            'wheel_desc': 'Eliminate crash/exception errors caused by broken Rollback when scrolling backward.',
+            'wheel_mode': 'Wheel Mode:',
+            'wheel_active_log': 'ACTIVE: Open Dialogue History (Safe, No Rollback)',
+            'wheel_active_lock': 'ACTIVE: Lock Mouse Wheel (Completely Disabled)',
+            'wheel_active_off': 'OFF: Game Default',
+            'wheel_opt1': '1. Open Dialogue History (Recommended)',
+            'wheel_opt2': '2. Lock Mouse Wheel',
+            'wheel_opt3': '3. Restore Default',
+            'rollback_lock_label': 'System-wide Rollback Lock:',
+            'rollback_locked': 'LOCKED (Full Protection)',
+            'rollback_unlocked': 'Unlocked (Normal)',
+            'single_key_label': 'Single-key shortcuts H, S, A, L (Turn off if game uses WASD):',
+            'single_key_on': 'Enabled (H, S, A, L)',
+            'single_key_off': 'Disabled (Game keys prioritized)',
+            'recovery_title': 'Auto-Crash Recovery & Interceptor',
+            'recovery_desc': 'When script/variable errors occur: automatically log errors, auto-fix missing variables, and allow the game to continue without crashing.',
+            'recovery_status_on': 'Status: AUTO PROTECTION ENABLED',
+            'recovery_status_off': 'Status: PROTECTION DISABLED',
+            'recovery_btn_on': 'ON (Recommended)',
+            'recovery_btn_off': 'OFF',
+            'sync_games_title': "Sync Cheat Menu to All Ren'Py Games (1-Click Sync)",
+            'sync_games_desc': "Automatically scan and update the latest cheat_menu.rpy to other games in seconds.",
+            'sync_games_btn': u'⚡ SYNC TO ALL GAMES NOW',
+            'trans_not_active': '(!) TRANSLATION MODULE NOT ACTIVATED',
+            'trans_info1': "Translation mechanism is located in the companion module: 'cheat_translate.rpy'.",
+            'trans_info2': "The Cheat Menu shares interface with 'cheat_translate.rpy' and 'AI_trans_pry'.",
+            'trans_guide_title': '(Guide) How to activate:',
+            'trans_guide1': "1. Ensure 'cheat_translate.rpy' is placed in the game directory alongside 'cheat_menu.rpy'.",
+            'trans_guide2': "2. Ensure 'AI_trans_pry' folder is present in the game directory.",
+            'trans_guide3': '3. Restart the game to automatically enable translation features!',
+            'hotkeys_title': 'KEYBOARD SHORTCUTS (HOTKEYS):',
+            'hk_menu_key': u'• Keys [[ ` ]] or [[ ~ ]] or [[ Shift + C ]]',
+            'hk_menu_desc': ': Open / Close Main Cheat Dashboard',
+            'hk_star_key': u'• Key [[ * ]] (Numpad Asterisk)',
+            'hk_star_desc': ': Collapse / Expand Floating Sidebar',
+            'hk_alt_star_key': u'• Keys [[ Alt + * ]]',
+            'hk_alt_star_desc': ': Show / Hide Floating Sidebar completely',
+            'hk_h_key': u'• Key [[ H ]]',
+            'hk_h_desc': ': Hide UI to view full CG / background',
+            'hk_s_key': u'• Key [[ S ]]',
+            'hk_s_desc': ': Toggle Force Skip (fast forward all text)',
+            'hk_a_key': u'• Key [[ A ]]',
+            'hk_a_desc': ': Toggle Auto-Forward text mode',
+            'hk_dev_key': u'• Keys [[ Shift + O ]]',
+            'hk_dev_desc': ": Open Ren'Py native Python console",
+            'hk_wheel_key': u'• Mouse Wheel (Scroll Up)',
+            'hk_wheel_desc': ': Anti-crash Rollback (Open History / Lock Rollback)',
+            'scaling_title': 'UI AUTO-SCALING & DISPLAY PRESETS:',
+            'game_res': '(Game Resolution: %s)',
+            'scaling_desc': 'Cheat Menu automatically adapts to your game resolution. Select a scale preset:',
+            'tip_pinned': '(Tip) Click (*) to pin important variables to top. Click LOCK to freeze values!',
+            'hist_title': 'DIALOGUE HISTORY & RESTORE POINTS (HISTORY LOG)',
+            'hist_count': '(%d dialogue lines)',
+            'hist_desc': 'Click directly on any dialogue line or the Restore button to jump back to that point.',
+            'hist_empty_title': 'No dialogue history recorded yet.',
+            'hist_empty_desc': 'Play through a few dialogue lines and reopen this screen!',
+            'hist_restore': '< Jump Here',
+            'hist_footer_tip': 'Tip: Scroll mouse wheel to navigate | Click any line to jump back.',
+            'hist_open_game': 'Open Native Game History',
+            'notify_refresh': 'Refreshed data from save game!',
+            'notify_rollback_history': 'Enabled: Mouse wheel opens Dialogue History (Anti-crash Rollback)!',
+            'notify_rollback_locked': 'Enabled: Mouse wheel locked & Rollback disabled!',
+            'notify_rollback_default': 'Protection disabled: Mouse wheel restored to game default!',
+            'notify_rollback_hard_lock': 'Game Rollback has been LOCKED (Crash protection)!',
+            'notify_rollback_hard_unlock': 'Game Rollback has been UNLOCKED!',
+            'notify_max_clamp': 'Value exceeded limit! Clamped to max: %s',
+            'notify_invalid_number': 'Invalid number format! Please enter valid digits.',
+            'notify_gallery_unlocked': 'Safely unlocked all CGs, Gallery & Music!',
+            'notify_force_skip_on': 'Permanent Force Skip enabled!',
+            'notify_need_game_jump': 'Please start New Game or Load a Save before jumping scenes!',
+            'notify_jump_failed': 'Cannot jump to this label: %s',
+            'notify_need_game_call': 'Please start New Game or Load a Save before calling scenes!',
+            'notify_sync_src_not_found': 'Source cheat_menu.rpy file not found for sync!',
+            'notify_sync_dir_not_found': 'Directory not found: %s',
+            'notify_sync_done': 'Synced cheat_menu.rpy to %d game directories!',
+            'notify_rollback_only_in_game': 'Can only jump back while in an active game session!',
+            'notify_rollback_success': 'Jumped back to selected dialogue!',
+            'notify_rollback_too_far': 'Cannot jump back to this point (too far or no checkpoint recorded).',
+            'notify_rollback_error': 'Error: Game encountered memory error during Rollback!',
+            'notify_lang_changed': 'Language changed to English!',
+            'notify_export_merged': 'This feature has been merged into the Translate Game (xlsx) button!',
+            'notify_error_prefix': 'Error: %s',
+            'notify_call_failed': 'Cannot call this label: %s',
+            'notify_clamped_game_max': 'Set to valid game maximum (%s) based on game data!',
+            'notify_max_value_set': 'Maximized value to (%s)!',
+            'notify_crash_intercepted': u'⚡ Cheat Menu: Auto-intercepted error: %s',
+            'notify_sync_error': 'Sync error: %s',
+            'notify_master_updated': u'⚡ [Cheat Menu] Auto-updated and loaded latest version from Master!',
+        },
+        'vi': {
+            'title': 'CHEAT ENGINE & HIDESKIP PRO 3.1',
+            'ui_size': u'Kích cỡ UI:',
+            'close': u'X ĐÓNG',
+            'language': u'Ngôn ngữ',
+            'select_language': u'Chọn Ngôn Ngữ Giao Diện',
+            'save': u'Lưu',
+            'cancel': u'Hủy',
+            'refresh': u'🔄 Làm mới',
+            'clear': u'Xóa',
+            'locked': u'KHÓA',
+            'lock': u'Khóa',
+            'tab_vars': u'Quản lý Biến (Vars)',
+            'tab_labels': u'Nhảy cảnh (Labels)',
+            'tab_unlocks': u'Mở khóa & Hệ thống',
+            'tab_translate': u'AI Dịch thuật (AI_trans_pry)',
+            'tab_help': u'Phím tắt & Trợ giúp',
+            'novel_controls': 'NOVEL CONTROLS',
+            'hide_ui': 'Hide (H)',
+            'skip': 'Skip (S)',
+            'auto': 'Auto (A)',
+            'log': 'Log (L)',
+            'game_data': 'GAME DATA',
+            'q_save': 'Q.Save',
+            'q_load': 'Q.Load',
+            'cheat_engine': 'CHEAT ENGINE',
+            'cheat_menu_btn': 'Cheat Menu',
+            'ai_trans_on': u'Dịch AI: BẬT',
+            'ai_trans_off': u'Dịch AI: TẮT',
+            'wheel_log': u'Lăn chuột: Mở Log (An toàn)',
+            'wheel_lock': u'Lăn chuột: Khóa Rollback',
+            'wheel_default': u'Lăn chuột: Mặc định game',
+            'filter': u'Lọc:',
+            'filter_all': u'Tất cả',
+            'filter_num': u'Số (Stats)',
+            'filter_bool': u'Cờ (Bool)',
+            'filter_str': u'Chữ (Str)',
+            'step_val': u'Bước nhảy:',
+            'search_var': u'Tìm chỉ số/biến:',
+            'search_label': u'Tìm:',
+            'editing_num': u'Đang sửa số...',
+            'no_vars_found': u'Không tìm thấy biến game nào phù hợp với bộ lọc.',
+            'empty_str': u'(Trống / "")',
+            'bool_true': u'BẬT (True)',
+            'bool_false': u'TẮT (False)',
+            'edit_str': u'Sửa chữ',
+            'clear_str': u'Xóa rỗng',
+            'game_object': u'(Đối tượng game)',
+            'total_vars': u'Tổng: %d biến',
+            'page_prev': u'< Trang trước',
+            'page_next': u'Trang sau >',
+            'page_info_vars': u'Trang %d / %d (Tổng %d biến)',
+            'search_scene': u'Tìm kiếm cảnh (Label):',
+            'total_labels': u'Tổng: %d labels',
+            'no_labels_found': u'Không tìm thấy cảnh (label) nào phù hợp.',
+            'jump_btn': u'> Nhảy tới (Jump)',
+            'call_btn': u'> Gọi cảnh (Call)',
+            'page_info_labels': u'Trang %d / %d (Tổng %d labels)',
+            'lang_section_title': u'Ngôn ngữ Cheat Menu',
+            'lang_section_desc': u'Chọn ngôn ngữ hiển thị cho giao diện Cheat Menu. Cài đặt có hiệu lực ngay lập tức.',
+            'gallery_title': u'Mở khóa toàn bộ Thư viện ảnh (Gallery & CG)',
+            'gallery_desc': u'Tự động kích hoạt toàn bộ hình ảnh và cờ persistent lưu trữ Gallery/Replay.',
+            'gallery_btn': u'KÍCH HOẠT MỞ KHÓA TOÀN BỘ GALLERY',
+            'dev_title': u'Chế độ Nhà phát triển (Developer Console)',
+            'dev_desc': u"Mở khóa phím tắt Shift + O để bật Console gõ lệnh Python trực tiếp của Ren'Py.",
+            'dev_active': u'Trạng thái: ĐÃ KÍCH HOẠT',
+            'dev_inactive': u'Trạng thái: CHƯA KÍCH HOẠT',
+            'dev_btn': u'Bật Developer Mode',
+            'skip_title': u'Bỏ qua không giới hạn (Force Skip Unseen Text)',
+            'skip_desc': u'Cho phép Skip tua nhanh qua cả những đoạn thoại chưa từng xem qua trước đây mà không bị dừng.',
+            'skip_btn': u'Kích hoạt Force Skip Vĩnh Viễn',
+            'wheel_title': u'Bảo vệ con lăn chuột & Chống lỗi tua ngược (Rollback Fix)',
+            'wheel_desc': u'Khắc phục triệt để lỗi Crash / Exception ở các game bị hỏng tính năng Rollback khi lăn chuột ngược lại.',
+            'wheel_mode': u'Chế độ con lăn:',
+            'wheel_active_log': u'ĐANG BẬT: Mở Lịch sử thoại (Xem lại thoại an toàn, không Rollback)',
+            'wheel_active_lock': u'ĐANG BẬT: Khóa con lăn chuột (Vô hiệu hóa hoàn toàn)',
+            'wheel_active_off': u'ĐANG TẮT: Mặc định gốc của game',
+            'wheel_opt1': u'1. Mở Lịch Sử Thoại (Khuyên Dùng)',
+            'wheel_opt2': u'2. Khóa Con Lăn Chuột',
+            'wheel_opt3': u'3. Khôi Phục Mặc Định',
+            'rollback_lock_label': u'Khóa Rollback toàn hệ thống:',
+            'rollback_locked': u'ĐANG KHÓA (Bảo vệ tuyệt đối)',
+            'rollback_unlocked': u'Đang mở (Bình thường)',
+            'single_key_label': u'Phím tắt đơn H, S, A, L (Tắt nếu game dùng WASD):',
+            'single_key_on': u'Đang Bật (H, S, A, L)',
+            'single_key_off': u'Đã Tắt (Ưu tiên phím game)',
+            'recovery_title': u'Tự động cứu hộ & Chống sập game khi gặp lỗi (Auto-Crash Recovery)',
+            'recovery_desc': u'Khi game xảy ra lỗi kịch bản / tràn biến: Tự động ghi lại lỗi vào cheat_crash_log.txt, tự sửa biến và cho phép game tiếp tục chạy thay vì văng sập ra Desktop.',
+            'recovery_status_on': u'Trạng thái: ĐANG BẬT BẢO VỆ TỰ ĐỘNG',
+            'recovery_status_off': u'Trạng thái: ĐÃ TẮT BẢO VỆ',
+            'recovery_btn_on': u'BẬT (Khuyên dùng)',
+            'recovery_btn_off': u'TẮT',
+            'sync_games_title': u"Đồng bộ Cheat Menu sang tất cả game Ren'Py (1-Click Multi-Game Sync)",
+            'sync_games_desc': u'Tự động quét toàn bộ thư mục và cập nhật bản cheat_menu.rpy mới nhất này sang tất cả các game khác chỉ trong 1 giây.',
+            'sync_games_btn': u'⚡ KÍCH HOẠT ĐỒNG BỘ CHO TẤT CẢ CÁC GAME NGAY',
+            'trans_not_active': u'(!) CHƯA KÍCH HOẠT MODULE DỊCH THUẬT',
+            'trans_info1': u"Cơ chế dịch thuật đã được tách thành module độc lập: 'cheat_translate.rpy'.",
+            'trans_info2': u"Theo thiết kế mới, Cheat Menu dùng chung menu phiên dịch với 'cheat_translate.rpy' và 'AI_trans_pry'.",
+            'trans_guide_title': u'(Hướng dẫn) Cách kích hoạt:',
+            'trans_guide1': u"1. Đảm bảo file 'cheat_translate.rpy' nằm cùng thư mục game với 'cheat_menu.rpy'.",
+            'trans_guide2': u"2. Đảm bảo thư mục 'AI_trans_pry' nằm trong thư mục game.",
+            'trans_guide3': u'3. Khởi động lại game, Cheat Menu sẽ tự động phát hiện và mở khóa toàn bộ tính năng dịch thuật!',
+            'hotkeys_title': u'DANH SÁCH PHÍM TẮT TIỆN LỢI (HOTKEYS):',
+            'hk_menu_key': u'• Phím [[ ` ]] hoặc [[ ~ ]] hoặc [[ Shift + C ]]',
+            'hk_menu_desc': u': Mở / Đóng Bảng điều khiển Cheat chính',
+            'hk_star_key': u'• Phím [[ * ]] (Dấu sao Numpad)',
+            'hk_star_desc': u': Thu gọn / Mở rộng Thanh nổi bên phải',
+            'hk_alt_star_key': u'• Keys [[ Alt + * ]]',
+            'hk_alt_star_desc': u': Bật / Tắt ẩn hoàn toàn Thanh nổi bên phải',
+            'hk_h_key': u'• Phím [[ H ]]',
+            'hk_h_desc': u': Ẩn khung thoại (Hide UI) để xem trọn vẹn CG / hình nền',
+            'hk_s_key': u'• Phím [[ S ]]',
+            'hk_s_desc': u': Bật / Tắt Tua nhanh (Tua qua tất cả hội thoại, kể cả chưa đọc)',
+            'hk_a_key': u'• Phím [[ A ]]',
+            'hk_a_desc': u': Bật / Tắt chế độ Tự động đọc thoại (Auto-Forward)',
+            'hk_dev_key': u'• Phím [[ Shift + O ]]',
+            'hk_dev_desc': u": Mở Console dòng lệnh Python gốc của Ren'Py",
+            'hk_wheel_key': u'• Con lăn chuột (Lăn lên)',
+            'hk_wheel_desc': u': Chống lỗi Rollback (Tùy chọn: Mở Lịch sử thoại / Khóa Rollback)',
+            'scaling_title': u'ĐỒNG BỘ KÍCH CỠ GIAO DIỆN (AUTO-SCALING & UI SCALE):',
+            'game_res': u'(Độ phân giải game: %s)',
+            'scaling_desc': u'Cheat Menu tự động nhận diện độ phân giải game và scale tỷ lệ chuẩn (100% không can thiệp hay thay đổi cấu hình gốc của game). Bạn có thể chọn nhanh kích cỡ mong muốn:',
+            'tip_pinned': u'(Mẹo) Bấm vào nút (*) để ghim biến quan trọng lên đầu. Bấm vào nút KHÓA để đóng băng giá trị không bao giờ bị giảm!',
+            'hist_title': u'NHẬT KÝ HỘI THOẠI & ĐIỂM QUAY LẠI (HISTORY LOG)',
+            'hist_count': u'(%d câu thoại)',
+            'hist_desc': u'Bấm trực tiếp vào câu thoại hoặc nút Quay lại để nhảy ngược game về thời điểm đó.',
+            'hist_empty_title': u'Chưa có dữ liệu lịch sử hội thoại nào được ghi lại.',
+            'hist_empty_desc': u'Hãy tiếp tục chơi qua vài câu thoại rồi mở lại bảng này nhé!',
+            'hist_restore': u'< Quay lại',
+            'hist_footer_tip': u'Mẹo: Lăn chuột để cuộn danh sách | Bấm vào bất kỳ câu nào để quay lại.',
+            'hist_open_game': u'Mở History gốc của game',
+            'notify_refresh': u'Đã làm mới dữ liệu từ file save!',
+            'notify_rollback_history': u'Đã bật: Lăn chuột chuyển sang mở Lịch sử thoại (Chống lỗi Rollback)!',
+            'notify_rollback_locked': u'Đã bật: Khóa con lăn chuột & vô hiệu hóa Rollback hoàn toàn!',
+            'notify_rollback_default': u'Đã tắt bảo vệ: Con lăn chuột về mặc định của game!',
+            'notify_rollback_hard_lock': u'Đã KHÓA hoàn toàn Rollback của game (Chống crash)!',
+            'notify_rollback_hard_unlock': u'Đã MỞ LẠI Rollback của game!',
+            'notify_max_clamp': u'Giá trị vượt giới hạn! Tự động đưa về mức tối đa: %s',
+            'notify_invalid_number': u'Giá trị số không hợp lệ! Vui lòng chỉ nhập số.',
+            'notify_gallery_unlocked': u'Đã mở khóa toàn bộ CG, Gallery & Âm nhạc an toàn!',
+            'notify_force_skip_on': u'Đã bật Force Skip vĩnh viễn!',
+            'notify_need_game_jump': u'Vui lòng Bắt đầu game (New Game) hoặc Load Save trước khi Nhảy cảnh!',
+            'notify_jump_failed': u'Không thể nhảy tới cảnh này: %s',
+            'notify_need_game_call': u'Vui lòng Bắt đầu game (New Game) hoặc Load Save trước khi Gọi cảnh!',
+            'notify_sync_src_not_found': u'Không tìm thấy file nguồn cheat_menu.rpy để đồng bộ!',
+            'notify_sync_dir_not_found': u'Không tìm thấy thư mục: %s',
+            'notify_sync_done': u'Đã đồng bộ Cheat Menu mới nhất cho %d thư mục game!',
+            'notify_rollback_only_in_game': u'Chỉ có thể quay lại khi đang trong tiến trình game!',
+            'notify_rollback_success': u'Đã quay lại đoạn hội thoại đã chọn!',
+            'notify_rollback_too_far': u'Không thể quay lại điểm này (Điểm này quá xa hoặc game không lưu checkpoint).',
+            'notify_rollback_error': u'Lỗi: Game này gặp sự cố bộ nhớ khi Rollback!',
+            'notify_lang_changed': u'Đã chuyển ngôn ngữ sang Tiếng Việt!',
+            'notify_export_merged': u'Tính năng này đã được gộp vào nút Dịch Game (xlsx)!',
+            'notify_error_prefix': u'Lỗi: %s',
+            'notify_call_failed': u'Không thể gọi cảnh này: %s',
+            'notify_clamped_game_max': u'Đã đặt giá trị tối đa hợp lệ (%s) theo dữ liệu của game!',
+            'notify_max_value_set': u'Đã nâng giá trị lên tối đa (%s)!',
+            'notify_crash_intercepted': u'⚡ Cheat Menu: Đã tự động bắt và chặn lỗi: %s',
+            'notify_sync_error': u'Lỗi đồng bộ: %s',
+            'notify_master_updated': u'⚡ [Cheat Menu] Đã tự động cập nhật và nạp bản mới nhất từ Master!',
+        }
+    }
+
+    def cheat_get_lang():
+        lang = getattr(persistent, 'cm_language', None)
+        if not lang or lang not in CHEAT_STRINGS:
+            return 'en'
+        return lang
+
+    def cheat_set_lang(lang):
+        if lang in CHEAT_STRINGS:
+            persistent.cm_language = lang
+            cheat_notify('notify_lang_changed')
+            try:
+                renpy.restart_interaction()
+            except Exception:
+                pass
+
+    def cheat_tr(key, *args):
+        lang = cheat_get_lang()
+        text = CHEAT_STRINGS.get(lang, {}).get(key)
+        if text is None:
+            text = CHEAT_STRINGS.get('en', {}).get(key, key)
+        if args:
+            try:
+                return text % args
+            except Exception:
+                return text
+        return text
+
+    renpy.store.cheat_tr = cheat_tr
+    renpy.store._cm_t = cheat_tr
 
     _prev_rollback_state = True
     _orig_rollback_keys = None
 
-    def cheat_notify(msg):
-        """Bọc thông báo an toàn, chống crash khi gọi ở init phase hoặc khi chưa sẵn sàng giao diện."""
+    def cheat_notify(msg, *args):
+        """Bọc thông báo an toàn, tự động dịch thông báo theo ngôn ngữ đang chọn."""
         try:
             if hasattr(renpy, 'game') and hasattr(renpy.game, 'context'):
                 ctx = renpy.game.context()
                 if getattr(ctx, 'init_phase', False):
                     return
-            renpy.notify(msg)
+            trans_text = cheat_tr(msg, *args) if isinstance(msg, _STR_TYPES) and msg in CHEAT_STRINGS.get('en', {}) else msg
+            if args and trans_text == msg:
+                try:
+                    trans_text = msg % args
+                except Exception:
+                    pass
+            renpy.notify(trans_text)
         except Exception:
             pass
 
@@ -1101,7 +1517,7 @@ init -999 python:
         """
         try:
             if not cheat_can_jump_safely():
-                cheat_notify("Chỉ có thể quay lại khi đang trong tiến trình game!")
+                cheat_notify('notify_rollback_only_in_game')
                 return
 
             # Tạm thời bật rollback_enabled để engine cho phép tua lại
@@ -1117,7 +1533,7 @@ init -999 python:
                         act = renpy.exports.RollbackToIdentifier(rb_id)
                         renpy.hide_screen('cheat_history_modal')
                         renpy.run(act)
-                        cheat_notify("Đã quay lại đoạn hội thoại đã chọn!")
+                        cheat_notify('notify_rollback_success')
                         return
                     elif hasattr(renpy, 'rollback'):
                         res = renpy.rollback(force=True, rollback_identifier=rb_id)
@@ -1137,12 +1553,12 @@ init -999 python:
 
             if success:
                 renpy.hide_screen('cheat_history_modal')
-                cheat_notify("Đã quay lại đoạn hội thoại đã chọn!")
+                cheat_notify('notify_rollback_success')
                 renpy.restart_interaction()
             else:
-                cheat_notify("Không thể quay lại điểm này (Điểm này quá xa hoặc game không lưu checkpoint).")
+                cheat_notify('notify_rollback_too_far')
         except Exception as e:
-            cheat_notify("Lỗi: Game này gặp sự cố bộ nhớ khi Rollback!")
+            cheat_notify('notify_rollback_error')
         finally:
             if getattr(persistent, 'cm_disable_rollback', False) or getattr(persistent, 'cm_wheel_fix_mode', 'off') == 'disable':
                 _safe_set_config('rollback_enabled', False)
@@ -1211,11 +1627,11 @@ init -999 python:
         persistent.cm_wheel_fix_mode = mode
         cheat_apply_wheel_protection()
         if mode == 'history':
-            cheat_notify("Đã bật: Lăn chuột chuyển sang mở Lịch sử thoại (Chống lỗi Rollback)!")
+            cheat_notify('notify_rollback_history')
         elif mode == 'disable':
-            cheat_notify("Đã bật: Khóa con lăn chuột & vô hiệu hóa Rollback hoàn toàn!")
+            cheat_notify('notify_rollback_locked')
         else:
-            cheat_notify("Đã tắt bảo vệ: Con lăn chuột về mặc định của game!")
+            cheat_notify('notify_rollback_default')
         renpy.restart_interaction()
 
     def cheat_cycle_wheel_fix_mode():
@@ -1234,9 +1650,9 @@ init -999 python:
         persistent.cm_disable_rollback = not curr
         cheat_apply_wheel_protection()
         if persistent.cm_disable_rollback:
-            cheat_notify("Đã KHÓA hoàn toàn Rollback của game (Chống crash)!")
+            cheat_notify('notify_rollback_hard_lock')
         else:
-            cheat_notify("Đã MỞ LẠI Rollback của game!")
+            cheat_notify('notify_rollback_hard_unlock')
         renpy.restart_interaction()
 
     def cheat_modal_on_show():
@@ -1693,7 +2109,7 @@ init -999 python:
             new_val = _cheat_clamp_val_to_game_max(target, last_val, new_val, key)
             if orig_input != new_val and notify:
                 try:
-                    cheat_notify("Giá trị vượt giới hạn! Tự động đưa về mức tối đa: %s" % str(new_val))
+                    cheat_notify("notify_max_clamp", str(new_val))
                 except Exception:
                     pass
             if last_type == 'attr':
@@ -1744,6 +2160,7 @@ init -999 python:
             self.txt_target_lang = "VI"
             self.txt_selected_file = None
             self.show_trans_dropdown = False
+            self.show_lang_dropdown = False
             self.active_edit_char = None
             self.char_edit_preset = ""
             self.char_edit_self = ""
@@ -1891,7 +2308,7 @@ init -999 python:
                     try:
                         new_val = int(float(raw_s))
                     except Exception:
-                        cheat_notify("Giá trị số không hợp lệ! Vui lòng chỉ nhập số.")
+                        cheat_notify("notify_invalid_number")
                         return
 
                 # Bảo toàn kiểu float nếu biến gốc là float
@@ -1999,7 +2416,7 @@ init -999 python:
             return {}
 
         def export_b1_txt(self):
-            cheat_notify("Tính năng này đã được gộp vào nút Dịch Game (xlsx)!")
+            cheat_notify("notify_export_merged")
             renpy.restart_interaction()
 
         def toggle_auto_translate(self):
@@ -2293,9 +2710,9 @@ init -999 python:
                             s_val[sub_k] = max(s_val[sub_k], 1)
 
             renpy.save_persistent()
-            cheat_notify("Đã mở khóa toàn bộ CG, Gallery & Âm nhạc an toàn!")
+            cheat_notify("notify_gallery_unlocked")
         except Exception as e:
-            cheat_notify("Lỗi: " + str(e))
+            cheat_notify("notify_error_prefix", str(e))
 
     # Developer console (An toàn đa phiên bản)
     _safe_set_config('developer', True)
@@ -2310,7 +2727,7 @@ init -999 python:
         _safe_set_config('fast_skipping', True)
         _safe_set_config('allow_skipping', True)
         _safe_set_pref('skip_unseen', True)
-        cheat_notify("Đã bật Force Skip vĩnh viễn!")
+        cheat_notify("notify_force_skip_on")
         renpy.restart_interaction()
 
     def cheat_can_jump_safely():
@@ -2327,7 +2744,7 @@ init -999 python:
 
     def cheat_safe_jump(lbl):
         if not cheat_can_jump_safely():
-            cheat_notify("Vui lòng Bắt đầu game (New Game) hoặc Load Save trước khi Nhảy cảnh!")
+            cheat_notify("notify_need_game_jump")
             return
         renpy.hide_screen('cheat_main_modal')
         try:
@@ -2339,11 +2756,11 @@ init -999 python:
             try:
                 renpy.jump(lbl)
             except Exception as e:
-                cheat_notify("Không thể nhảy tới cảnh này: " + str(e))
+                cheat_notify("notify_jump_failed", str(e))
 
     def cheat_safe_call(lbl):
         if not cheat_can_jump_safely():
-            cheat_notify("Vui lòng Bắt đầu game (New Game) hoặc Load Save trước khi Gọi cảnh!")
+            cheat_notify("notify_need_game_call")
             return
         renpy.hide_screen('cheat_main_modal')
         try:
@@ -2355,7 +2772,7 @@ init -999 python:
             try:
                 renpy.call(lbl)
             except Exception as e:
-                cheat_notify("Không thể gọi cảnh này: " + str(e))
+                cheat_notify("notify_call_failed", str(e))
 
     def cheat_toggle_auto_forward():
         """Bật/tắt Auto-Forward, tự động khởi tạo thời gian afm nếu đang bằng 0."""
@@ -2519,9 +2936,9 @@ init -999 python:
             safe_max = _cheat_clamp_val_to_game_max(target, attr_name, desired_max, v_name)
             cheat_menu_state.set_val(v_name, safe_max)
             if safe_max != desired_max:
-                cheat_notify("Đã đặt giá trị tối đa hợp lệ (%s) theo dữ liệu của game!" % str(safe_max))
+                cheat_notify("notify_clamped_game_max", str(safe_max))
             else:
-                cheat_notify("Đã nâng giá trị lên tối đa (%s)!" % str(safe_max))
+                cheat_notify("notify_max_value_set", str(safe_max))
         except Exception:
             cheat_menu_state.set_val(v_name, 999999)
 
@@ -2552,7 +2969,7 @@ init -999 python:
 
             # 3. Hiện thông báo cho người chơi biết game vừa tự động giải cứu
             err_line = str(short).splitlines()[0] if str(short) else "Lỗi kịch bản game"
-            cheat_notify("⚡ Cheat Menu: Đã tự động bắt và chặn lỗi: %s" % err_line[:50])
+            cheat_notify("notify_crash_intercepted", err_line[:50])
 
             # 4. Cho phép game tiếp tục bỏ qua lệnh lỗi nếu tính năng tự cứu hộ đang bật
             if getattr(persistent, 'cm_auto_recover_crash', True):
@@ -2624,12 +3041,12 @@ init -999 python:
             elif os.path.exists(src_file):
                 src = src_file
             else:
-                cheat_notify("Không tìm thấy file nguồn cheat_menu.rpy để đồng bộ!")
+                cheat_notify("notify_sync_src_not_found")
                 return
 
             renpy_root = r"G:\TeraBoxDownload\Ren'Py"
             if not os.path.exists(renpy_root):
-                cheat_notify("Không tìm thấy thư mục G:\\TeraBoxDownload\\Ren'Py!")
+                cheat_notify("notify_sync_dir_not_found", renpy_root)
                 return
 
             import shutil
@@ -2646,10 +3063,10 @@ init -999 python:
                     except Exception:
                         pass
 
-            cheat_notify("Đã tự động đồng bộ Cheat Menu sang %d game thành công!" % count)
+            cheat_notify("notify_sync_done", count)
             renpy.restart_interaction()
         except Exception as e:
-            cheat_notify("Lỗi đồng bộ: " + str(e))
+            cheat_notify("notify_sync_error", str(e))
 
     # Kích hoạt tự động đồng bộ khi mở bất kỳ game nào
     _cheat_auto_sync_from_master()
@@ -2658,7 +3075,7 @@ init -999 python:
     try:
         if hasattr(renpy, 'session') and renpy.session.get('_cheat_hot_reloaded', False):
             renpy.session['_cheat_hot_reloaded'] = False
-            cheat_notify("⚡ [Cheat Menu] Đã tự động cập nhật và nạp bản mới nhất từ Master!")
+            cheat_notify("notify_master_updated")
     except Exception:
         pass
 
@@ -2809,6 +3226,7 @@ transform cheat_bar_scaler(z=1.0, y_pos=140):
 screen cheat_floating_bar():
     zorder 2000
     style_prefix "cheat"
+    $ _t = cheat_tr
 
     if getattr(persistent, 'cm_bar_visible', True):
         $ _cm_scale = cheat_get_ui_scale()
@@ -2857,7 +3275,7 @@ screen cheat_floating_bar():
                             vbox:
                                 spacing 3
                                 xsize 189
-                                text "NOVEL CONTROLS" size 10 bold True color "#94a3b8"
+                                text _t("novel_controls") size 10 bold True color "#94a3b8"
 
                                 # Lưới 2x2 nút điều khiển
                                 vbox:
@@ -2872,7 +3290,7 @@ screen cheat_floating_bar():
                                             ysize 28
                                             background "#ffffff14"
                                             hover_background "#ffffff29"
-                                            text "Hide (H)" size 11 bold True color "#f1f5f9" hover_color "#38bdf8" align (0.5, 0.5)
+                                            text _t("hide_ui") size 11 bold True color "#f1f5f9" hover_color "#38bdf8" align (0.5, 0.5)
 
                                         $ is_skipping = bool(hasattr(renpy.config, 'skipping') and renpy.config.skipping)
                                         button:
@@ -2881,7 +3299,7 @@ screen cheat_floating_bar():
                                             ysize 28
                                             background ("#0284c7" if is_skipping else "#ffffff14")
                                             hover_background ("#38bdf8" if is_skipping else "#ffffff29")
-                                            text "Skip (S)" size 11 bold True color ("#ffffff" if is_skipping else "#f1f5f9") align (0.5, 0.5)
+                                            text _t("skip") size 11 bold True color ("#ffffff" if is_skipping else "#f1f5f9") align (0.5, 0.5)
 
                                     hbox:
                                         spacing 4
@@ -2893,7 +3311,7 @@ screen cheat_floating_bar():
                                             ysize 28
                                             background ("#059669" if is_auto else "#ffffff14")
                                             hover_background ("#10b981" if is_auto else "#ffffff29")
-                                            text "Auto (A)" size 11 bold True color ("#ffffff" if is_auto else "#f1f5f9") align (0.5, 0.5)
+                                            text _t("auto") size 11 bold True color ("#ffffff" if is_auto else "#f1f5f9") align (0.5, 0.5)
 
                                         button:
                                             action ToggleScreen("cheat_history_modal")
@@ -2901,13 +3319,13 @@ screen cheat_floating_bar():
                                             ysize 28
                                             background "#ffffff14"
                                             hover_background "#ffffff29"
-                                            text "Log (L)" size 11 bold True color "#f1f5f9" hover_color "#38bdf8" align (0.5, 0.5)
+                                            text _t("log") size 11 bold True color "#f1f5f9" hover_color "#38bdf8" align (0.5, 0.5)
 
                             # --- NHÓM 2: GAME DATA ---
                             vbox:
                                 spacing 3
                                 xsize 189
-                                text "GAME DATA" size 10 bold True color "#94a3b8"
+                                text _t("game_data") size 10 bold True color "#94a3b8"
 
                                 vbox:
                                     spacing 4
@@ -2921,7 +3339,7 @@ screen cheat_floating_bar():
                                             ysize 28
                                             background "#ffffff14"
                                             hover_background "#ffffff29"
-                                            text "Save" size 11 bold True color "#f1f5f9" hover_color "#fbbf24" align (0.5, 0.5)
+                                            text _t("save") size 11 bold True color "#f1f5f9" hover_color "#fbbf24" align (0.5, 0.5)
 
                                         button:
                                             action ShowMenu("load")
@@ -2929,7 +3347,7 @@ screen cheat_floating_bar():
                                             ysize 28
                                             background "#ffffff14"
                                             hover_background "#ffffff29"
-                                            text "Load" size 11 bold True color "#f1f5f9" hover_color "#10b981" align (0.5, 0.5)
+                                            text _t("load") size 11 bold True color "#f1f5f9" hover_color "#10b981" align (0.5, 0.5)
 
                                     hbox:
                                         spacing 4
@@ -2940,7 +3358,7 @@ screen cheat_floating_bar():
                                             ysize 28
                                             background "#ffffff14"
                                             hover_background "#ffffff29"
-                                            text "Q.Save" size 11 bold True color "#f1f5f9" hover_color "#fbbf24" align (0.5, 0.5)
+                                            text _t("q_save") size 11 bold True color "#f1f5f9" hover_color "#fbbf24" align (0.5, 0.5)
 
                                         button:
                                             action QuickLoad()
@@ -2948,7 +3366,7 @@ screen cheat_floating_bar():
                                             ysize 28
                                             background "#ffffff14"
                                             hover_background "#ffffff29"
-                                            text "Q.Load" size 11 bold True color "#f1f5f9" hover_color "#10b981" align (0.5, 0.5)
+                                            text _t("q_load") size 11 bold True color "#f1f5f9" hover_color "#10b981" align (0.5, 0.5)
 
                             # --- NHÓM 3: CHEAT ENGINE ---
                             vbox:
@@ -2957,7 +3375,7 @@ screen cheat_floating_bar():
                                 hbox:
                                     xsize 189
                                     yalign 0.5
-                                    text "CHEAT ENGINE" size 10 bold True color "#94a3b8"
+                                    text _t("cheat_engine") size 10 bold True color "#94a3b8"
                                     hbox:
                                         xalign 1.0
                                         spacing 2
@@ -2980,7 +3398,7 @@ screen cheat_floating_bar():
                                     ysize 30
                                     background "#0284c7"
                                     hover_background "#38bdf8"
-                                    text "Cheat Menu" size 12 bold True color "#ffffff" align (0.5, 0.5)
+                                    text _t("cheat_menu_btn") size 12 bold True color "#ffffff" align (0.5, 0.5)
 
                                 if cheat_has_ai_trans():
                                     button:
@@ -2990,9 +3408,9 @@ screen cheat_floating_bar():
                                         background ("#059669" if persistent.cm_auto_translate else "#ffffff14")
                                         hover_background ("#10b981" if persistent.cm_auto_translate else "#ffffff29")
                                         if persistent.cm_auto_translate:
-                                            text "Dịch AI: BẬT" size 11 bold True color "#ffffff" align (0.5, 0.5)
+                                            text _t("ai_trans_on") size 11 bold True color "#ffffff" align (0.5, 0.5)
                                         else:
-                                            text "Dịch AI: TẮT" size 11 bold True color "#94a3b8" hover_color "#f1f5f9" align (0.5, 0.5)
+                                            text _t("ai_trans_off") size 11 bold True color "#94a3b8" hover_color "#f1f5f9" align (0.5, 0.5)
 
                                 $ _w_mode = getattr(persistent, 'cm_wheel_fix_mode', 'off')
                                 button:
@@ -3002,11 +3420,11 @@ screen cheat_floating_bar():
                                     background ("#0284c7" if _w_mode == 'history' else ("#d97706" if _w_mode == 'disable' else "#ffffff14"))
                                     hover_background ("#38bdf8" if _w_mode == 'history' else ("#f59e0b" if _w_mode == 'disable' else "#ffffff29"))
                                     if _w_mode == 'history':
-                                        text "Lăn chuột: Mở Log (An toàn)" size 11 bold True color "#ffffff" align (0.5, 0.5)
+                                        text _t("wheel_log") size 11 bold True color "#ffffff" align (0.5, 0.5)
                                     elif _w_mode == 'disable':
-                                        text "Lăn chuột: Khóa Rollback" size 11 bold True color "#ffffff" align (0.5, 0.5)
+                                        text _t("wheel_lock") size 11 bold True color "#ffffff" align (0.5, 0.5)
                                     else:
-                                        text "Lăn chuột: Mặc định game" size 11 color "#94a3b8" hover_color "#f1f5f9" align (0.5, 0.5)
+                                        text _t("wheel_default") size 11 color "#94a3b8" hover_color "#f1f5f9" align (0.5, 0.5)
 
 # ==============================================================================
 # SCREEN 2: BẢNG ĐIỀU KHIỂN CHEAT CHÍNH (PREMIUM DARK UI DASHBOARD)
@@ -3015,6 +3433,7 @@ screen cheat_main_modal():
     modal True
     zorder 1100
     style_prefix "cheat"
+    $ _t = cheat_tr
 
     # Chặn hoàn toàn con lăn chuột kích hoạt tính năng Rollback/Rollforward của game, đồng thời làm mới dữ liệu
     on "show" action Function(cheat_modal_on_show)
@@ -3048,18 +3467,35 @@ screen cheat_main_modal():
                     spacing 8
                     yalign 0.5
                     text "⚡" size 22 color "#38bdf8"
-                    text "CHEAT ENGINE & HIDESKIP PRO 3.1" size 18 bold True color "#f8fafc"
+                    text _t("title") size 18 bold True color "#f8fafc"
 
                 hbox:
                     xalign 1.0
                     yalign 0.5
-                    spacing 10
+                    spacing 8
+
+                    # Nút chọn ngôn ngữ trực quan (Language Selector Dropdown)
+                    $ curr_lang = cheat_get_lang()
+                    $ curr_lang_name = "English" if curr_lang == 'en' else u"Tiếng Việt"
+
+                    button:
+                        action ToggleField(cheat_menu_state, 'show_lang_dropdown')
+                        background ("#0284c7" if getattr(cheat_menu_state, 'show_lang_dropdown', False) else "#1e293b")
+                        hover_background "#38bdf8"
+                        ysize 26
+                        padding (8, 2)
+                        yalign 0.5
+                        hbox:
+                            spacing 5
+                            align (0.5, 0.5)
+                            text "🌐" size 11 yalign 0.5
+                            text "[curr_lang_name] ▼" size 11 bold True color "#ffffff" yalign 0.5
 
                     # Cụm điều khiển kích cỡ giao diện
                     hbox:
                         spacing 4
                         yalign 0.5
-                        text "Kích cỡ UI:" size 11 color "#94a3b8" yalign 0.5
+                        text _t("ui_size") size 11 color "#94a3b8" yalign 0.5
                         button:
                             action Function(cheat_step_ui_scale, -0.1)
                             background "#334155"
@@ -3087,46 +3523,46 @@ screen cheat_main_modal():
                         background "#e11d48"
                         hover_background "#f43f5e"
                         padding (12, 5)
-                        text "X ĐÓNG" size 12 bold True color "#ffffff"
+                        text _t("close") size 12 bold True color "#ffffff"
 
             # --- TAB NAVIGATION ---
             hbox:
                 spacing 8
                 button:
-                    action [SetField(cheat_menu_state, 'current_tab', 'vars'), Function(cheat_menu_state.invalidate_cache, False), Function(renpy.restart_interaction)]
+                    action [SetField(cheat_menu_state, 'current_tab', 'vars'), SetField(cheat_menu_state, 'show_lang_dropdown', False), Function(cheat_menu_state.invalidate_cache, False), Function(renpy.restart_interaction)]
                     background ("#0284c7" if cheat_menu_state.current_tab == 'vars' else "#1e293b")
                     hover_background "#0369a1"
                     padding (14, 8)
-                    text "Quản lý Biến (Vars)" size 13 bold True color "#ffffff"
+                    text _t("tab_vars") size 13 bold True color "#ffffff"
 
                 button:
-                    action [SetField(cheat_menu_state, 'current_tab', 'labels'), Function(renpy.restart_interaction)]
+                    action [SetField(cheat_menu_state, 'current_tab', 'labels'), SetField(cheat_menu_state, 'show_lang_dropdown', False), Function(renpy.restart_interaction)]
                     background ("#0284c7" if cheat_menu_state.current_tab == 'labels' else "#1e293b")
                     hover_background "#0369a1"
                     padding (14, 8)
-                    text "Nhảy cảnh (Labels)" size 13 bold True color "#ffffff"
+                    text _t("tab_labels") size 13 bold True color "#ffffff"
 
                 button:
-                    action [SetField(cheat_menu_state, 'current_tab', 'unlocks'), Function(renpy.restart_interaction)]
+                    action [SetField(cheat_menu_state, 'current_tab', 'unlocks'), SetField(cheat_menu_state, 'show_lang_dropdown', False), Function(renpy.restart_interaction)]
                     background ("#0284c7" if cheat_menu_state.current_tab == 'unlocks' else "#1e293b")
                     hover_background "#0369a1"
                     padding (14, 8)
-                    text "Mở khóa & Hệ thống" size 13 bold True color "#ffffff"
+                    text _t("tab_unlocks") size 13 bold True color "#ffffff"
 
                 if cheat_has_ai_trans():
                     button:
-                        action [SetField(cheat_menu_state, 'current_tab', 'translate'), Function(renpy.restart_interaction)]
+                        action [SetField(cheat_menu_state, 'current_tab', 'translate'), SetField(cheat_menu_state, 'show_lang_dropdown', False), Function(renpy.restart_interaction)]
                         background ("#0284c7" if cheat_menu_state.current_tab == 'translate' else "#1e293b")
                         hover_background "#0369a1"
                         padding (14, 8)
-                        text "AI Dịch thuật (AI_trans_pry)" size 13 bold True color "#ffffff"
+                        text _t("tab_translate") size 13 bold True color "#ffffff"
 
                 button:
-                    action [SetField(cheat_menu_state, 'current_tab', 'help'), Function(renpy.restart_interaction)]
+                    action [SetField(cheat_menu_state, 'current_tab', 'help'), SetField(cheat_menu_state, 'show_lang_dropdown', False), Function(renpy.restart_interaction)]
                     background ("#0284c7" if cheat_menu_state.current_tab == 'help' else "#1e293b")
                     hover_background "#0369a1"
                     padding (14, 8)
-                    text "Phím tắt & Trợ giúp" size 13 bold True color "#ffffff"
+                    text _t("tab_help") size 13 bold True color "#ffffff"
 
             # ĐƯỜNG PHÂN CÁCH
             frame:
@@ -3150,36 +3586,36 @@ screen cheat_main_modal():
                     hbox:
                         spacing 5
                         yalign 0.5
-                        text "Lọc:" size 12 color "#94a3b8" yalign 0.5
+                        text _t("filter") size 12 color "#94a3b8" yalign 0.5
                         button:
                             action [SetField(cheat_menu_state, 'var_filter_type', 'all'), Function(cheat_menu_state.invalidate_cache, True), Function(renpy.restart_interaction)]
                             background ("#0284c7" if cheat_menu_state.var_filter_type == 'all' else "#1e293b")
                             padding (7, 4)
-                            text "Tất cả" size 11 color "#ffffff"
+                            text _t("filter_all") size 11 color "#ffffff"
 
                         button:
                             action [SetField(cheat_menu_state, 'var_filter_type', 'num'), Function(cheat_menu_state.invalidate_cache, True), Function(renpy.restart_interaction)]
                             background ("#0284c7" if cheat_menu_state.var_filter_type == 'num' else "#1e293b")
                             padding (7, 4)
-                            text "Số (Stats)" size 11 color "#ffffff"
+                            text _t("filter_num") size 11 color "#ffffff"
 
                         button:
                             action [SetField(cheat_menu_state, 'var_filter_type', 'bool'), Function(cheat_menu_state.invalidate_cache, True), Function(renpy.restart_interaction)]
                             background ("#0284c7" if cheat_menu_state.var_filter_type == 'bool' else "#1e293b")
                             padding (7, 4)
-                            text "Cờ (Bool)" size 11 color "#ffffff"
+                            text _t("filter_bool") size 11 color "#ffffff"
 
                         button:
                             action [SetField(cheat_menu_state, 'var_filter_type', 'str'), Function(cheat_menu_state.invalidate_cache, True), Function(renpy.restart_interaction)]
                             background ("#0284c7" if cheat_menu_state.var_filter_type == 'str' else "#1e293b")
                             padding (7, 4)
-                            text "Chữ (Str)" size 11 color "#ffffff"
+                            text _t("filter_str") size 11 color "#ffffff"
 
                     # Bước nhảy số
                     hbox:
                         spacing 4
                         yalign 0.5
-                        text "Bước nhảy:" size 12 color "#94a3b8" yalign 0.5
+                        text _t("step_val") size 12 color "#94a3b8" yalign 0.5
                         for step_val in [1, 10, 100, 1000]:
                             button:
                                 action [SetField(cheat_menu_state, 'selected_amount', step_val), Function(renpy.restart_interaction)]
@@ -3192,7 +3628,7 @@ screen cheat_main_modal():
                     hbox:
                         spacing 6
                         yalign 0.5
-                        text "Tìm chỉ số/biến:" size 12 bold True color "#38bdf8" yalign 0.5
+                        text _t("search_var") size 12 bold True color "#38bdf8" yalign 0.5
                         frame:
                             background "#090d16"
                             xsize 230
@@ -3202,7 +3638,7 @@ screen cheat_main_modal():
                             hbox:
                                 spacing 6
                                 yalign 0.5
-                                text "Tìm:" size 11 bold True color "#38bdf8" yalign 0.5
+                                text _t("search_label") size 11 bold True color "#38bdf8" yalign 0.5
                                 if cheat_menu_state.active_edit_var is None:
                                     input:
                                         value FieldInputValue(cheat_menu_state, 'search_var_keyword')
@@ -3214,7 +3650,7 @@ screen cheat_main_modal():
                                         color "#ffffff"
                                         yalign 0.5
                                 else:
-                                    $ search_display = _safe_str(cheat_menu_state.search_var_keyword) if cheat_menu_state.search_var_keyword else "Đang sửa số..."
+                                    $ search_display = _safe_str(cheat_menu_state.search_var_keyword) if cheat_menu_state.search_var_keyword else _t("editing_num")
                                     text "[search_display!q]" size 12 color "#64748b" yalign 0.5
 
                         if cheat_menu_state.search_var_keyword:
@@ -3224,7 +3660,7 @@ screen cheat_main_modal():
                                 hover_background "#f87171"
                                 padding (6, 3)
                                 yalign 0.5
-                                text "Xóa" size 10 bold True color "#ffffff"
+                                text _t("clear") size 10 bold True color "#ffffff"
 
                     hbox:
                         xalign 1.0
@@ -3232,14 +3668,14 @@ screen cheat_main_modal():
                         spacing 8
 
                         button:
-                            action [Function(cheat_menu_state.invalidate_cache, False), Function(cheat_notify, "Đã làm mới dữ liệu từ file save!"), Function(renpy.restart_interaction)]
+                            action [Function(cheat_menu_state.invalidate_cache, False), Function(cheat_notify, "notify_refresh"), Function(renpy.restart_interaction)]
                             background "#0284c7"
                             hover_background "#38bdf8"
                             padding (8, 4)
                             yalign 0.5
-                            text "🔄 Làm mới" size 11 bold True color "#ffffff"
+                            text _t("refresh") size 11 bold True color "#ffffff"
 
-                        $ total_vars_lbl = "Tổng: %d biến" % total_vars
+                        $ total_vars_lbl = _t("total_vars", total_vars)
                         text "[total_vars_lbl]" size 12 bold True color "#38bdf8" yalign 0.5
 
                 # BẢNG HIỂN THỊ DANH SÁCH BIẾN THEO TRANG (KHÔNG DÙNG THANH CUỘN)
@@ -3251,7 +3687,7 @@ screen cheat_main_modal():
                             xfill True
                             background "#1e293b44"
                             padding (20, 20)
-                            text "Không tìm thấy biến game nào phù hợp với bộ lọc." size 13 color "#94a3b8" xalign 0.5
+                            text _t("no_vars_found") size 13 color "#94a3b8" xalign 0.5
                     else:
                         for item in paged_vars:
                                 $ v_name = item[0]
@@ -3287,7 +3723,7 @@ screen cheat_main_modal():
                                             hover_background "#0891b2"
                                             ysize 26
                                             padding (8, 0)
-                                            text ("KHÓA" if is_frozen else "Khóa") size 10 bold True color "#ffffff" align (0.5, 0.5)
+                                            text (_t("locked") if is_frozen else _t("lock")) size 10 bold True color "#ffffff" align (0.5, 0.5)
 
                                         # Badge loại dữ liệu
                                         frame:
@@ -3328,7 +3764,7 @@ screen cheat_main_modal():
                                                     ysize 26
                                                     padding (8, 0)
                                                     yalign 0.5
-                                                    text "Lưu" size 11 bold True color "#ffffff" align (0.5, 0.5)
+                                                    text _t("save") size 11 bold True color "#ffffff" align (0.5, 0.5)
                                                 button:
                                                     action Function(cheat_menu_state.cancel_editor)
                                                     background "#e11d48"
@@ -3336,7 +3772,7 @@ screen cheat_main_modal():
                                                     ysize 26
                                                     padding (8, 0)
                                                     yalign 0.5
-                                                    text "Hủy" size 11 bold True color "#ffffff" align (0.5, 0.5)
+                                                    text _t("cancel") size 11 bold True color "#ffffff" align (0.5, 0.5)
                                             else:
                                                 # Click vào số để nhập trực tiếp bằng bàn phím
                                                 button:
@@ -3345,7 +3781,9 @@ screen cheat_main_modal():
                                                     hover_background "#0284c7"
                                                     padding (6, 3)
                                                     xsize 170
-                                                    text "[display_val!q]" size 13 bold True color "#4ade80"
+                                                    ysize 26
+                                                    $ preview_num = cheat_truncate_single_line(display_val, 16)
+                                                    text "[preview_num!q]" size 13 bold True color "#4ade80" yalign 0.5 layout "nobreak"
 
                                         elif v_type == 'str':
                                             if cheat_menu_state.active_edit_var == v_name:
@@ -3372,7 +3810,7 @@ screen cheat_main_modal():
                                                     ysize 26
                                                     padding (8, 0)
                                                     yalign 0.5
-                                                    text "Lưu" size 11 bold True color "#ffffff" align (0.5, 0.5)
+                                                    text _t("save") size 11 bold True color "#ffffff" align (0.5, 0.5)
                                                 button:
                                                     action Function(cheat_menu_state.cancel_editor)
                                                     background "#e11d48"
@@ -3380,7 +3818,7 @@ screen cheat_main_modal():
                                                     ysize 26
                                                     padding (8, 0)
                                                     yalign 0.5
-                                                    text "Hủy" size 11 bold True color "#ffffff" align (0.5, 0.5)
+                                                    text _t("cancel") size 11 bold True color "#ffffff" align (0.5, 0.5)
                                             else:
                                                 # Click vào chữ để sửa trực tiếp bằng bàn phím y như Stats
                                                 button:
@@ -3389,12 +3827,14 @@ screen cheat_main_modal():
                                                     hover_background "#d97706"
                                                     padding (6, 3)
                                                     xsize 170
-                                                    $ preview_str = display_val if display_val else '(Trống / "")'
-                                                    text "[preview_str!q]" size 13 bold True color ("#f59e0b" if display_val else "#64748b")
+                                                    ysize 26
+                                                    $ preview_str = cheat_truncate_single_line(display_val, 16) if display_val else _t("empty_str")
+                                                    text "[preview_str!q]" size 13 bold True color ("#f59e0b" if display_val else "#64748b") yalign 0.5 layout "nobreak"
 
                                         else:
                                             # Cờ (Bool) hoặc đối tượng khác
-                                            text "[display_val!q]" size 13 color "#94a3b8" xsize 170
+                                            $ preview_other = cheat_truncate_single_line(display_val, 16)
+                                            text "[preview_other!q]" size 13 color "#94a3b8" xsize 170 yalign 0.5 layout "nobreak"
 
                                         # Các thao tác sửa giá trị
                                         if v_type == 'num':
@@ -3440,7 +3880,7 @@ screen cheat_main_modal():
                                                 hover_background ("#10b981" if v_val else "#f43f5e")
                                                 ysize 26
                                                 padding (14, 0)
-                                                text ("BẬT (True)" if v_val else "TẮT (False)") size 11 bold True color "#ffffff" align (0.5, 0.5)
+                                                text (_t("bool_true") if v_val else _t("bool_false")) size 11 bold True color "#ffffff" align (0.5, 0.5)
 
                                         elif v_type == 'str':
                                             button:
@@ -3449,7 +3889,7 @@ screen cheat_main_modal():
                                                 hover_background "#f59e0b"
                                                 ysize 26
                                                 padding (10, 0)
-                                                text "Sửa chữ" size 11 bold True color "#ffffff" align (0.5, 0.5)
+                                                text _t("edit_str") size 11 bold True color "#ffffff" align (0.5, 0.5)
 
                                             button:
                                                 action Function(cheat_menu_state.set_val, v_name, "")
@@ -3457,10 +3897,10 @@ screen cheat_main_modal():
                                                 hover_background "#ef4444"
                                                 ysize 26
                                                 padding (8, 0)
-                                                text "Xóa rỗng" size 11 color "#ffffff" align (0.5, 0.5)
+                                                text _t("clear_str") size 11 color "#ffffff" align (0.5, 0.5)
 
                                         else:
-                                            text "(Đối tượng game)" size 11 color "#64748b"
+                                            text _t("game_object") size 11 color "#64748b"
 
                 # THANH ĐIỀU HƯỚNG PHÂN TRANG (NHƯ CŨ - KHÔNG DÙNG THANH CUỘN)
                 hbox:
@@ -3473,9 +3913,9 @@ screen cheat_main_modal():
                         hover_background ("#38bdf8" if curr_p > 1 else "#334155")
                         ysize 30
                         padding (14, 0)
-                        text "< Trang trước" size 12 bold True color "#ffffff" align (0.5, 0.5)
+                        text _t("page_prev") size 12 bold True color "#ffffff" align (0.5, 0.5)
 
-                    $ page_info = "Trang %d / %d (Tổng %d biến)" % (curr_p, max_p, total_vars)
+                    $ page_info = _t("page_info_vars", curr_p, max_p, total_vars)
                     text "[page_info]" size 13 bold True color "#38bdf8" yalign 0.5
 
                     button:
@@ -3484,7 +3924,7 @@ screen cheat_main_modal():
                         hover_background ("#38bdf8" if curr_p < max_p else "#334155")
                         ysize 30
                         padding (14, 0)
-                        text "Trang sau >" size 12 bold True color "#ffffff" align (0.5, 0.5)
+                        text _t("page_next") size 12 bold True color "#ffffff" align (0.5, 0.5)
 
             # ==================================================================
             # TAB 2: NHẢY CẢNH (LABELS JUMPER)
@@ -3498,7 +3938,7 @@ screen cheat_main_modal():
                     hbox:
                         spacing 8
                         yalign 0.5
-                        text "Tìm kiếm cảnh (Label):" size 13 bold True color "#38bdf8" yalign 0.5
+                        text _t("search_scene") size 13 bold True color "#38bdf8" yalign 0.5
                         frame:
                             background "#090d16"
                             xsize 300
@@ -3508,7 +3948,7 @@ screen cheat_main_modal():
                             hbox:
                                 spacing 6
                                 yalign 0.5
-                                text "Tìm:" size 11 bold True color "#38bdf8" yalign 0.5
+                                text _t("search_label") size 11 bold True color "#38bdf8" yalign 0.5
                                 input:
                                     value FieldInputValue(cheat_menu_state, 'search_label_keyword')
                                     length 30
@@ -3527,9 +3967,9 @@ screen cheat_main_modal():
                                 ysize 26
                                 padding (8, 0)
                                 yalign 0.5
-                                text "Xóa" size 11 bold True color "#ffffff" align (0.5, 0.5)
+                                text _t("clear") size 11 bold True color "#ffffff" align (0.5, 0.5)
 
-                    $ total_lbls_lbl = "Tổng: %d labels" % total_lbl_count
+                    $ total_lbls_lbl = _t("total_labels", total_lbl_count)
                     text "[total_lbls_lbl]" size 12 bold True color "#38bdf8" xalign 1.0 yalign 0.5
 
                 vbox:
@@ -3540,7 +3980,7 @@ screen cheat_main_modal():
                             xfill True
                             background "#1e293b44"
                             padding (20, 20)
-                            text "Không tìm thấy cảnh (label) nào phù hợp." size 13 color "#94a3b8" xalign 0.5
+                            text _t("no_labels_found") size 13 color "#94a3b8" xalign 0.5
                     else:
                         for lbl in paged_lbls:
                             frame:
@@ -3560,7 +4000,7 @@ screen cheat_main_modal():
                                         hover_background "#38bdf8"
                                         ysize 26
                                         padding (12, 0)
-                                        text "> Nhảy tới (Jump)" size 12 bold True color "#ffffff" align (0.5, 0.5)
+                                        text _t("jump_btn") size 12 bold True color "#ffffff" align (0.5, 0.5)
 
                                     button:
                                         action Function(cheat_safe_call, lbl)
@@ -3568,7 +4008,7 @@ screen cheat_main_modal():
                                         hover_background "#10b981"
                                         ysize 26
                                         padding (12, 0)
-                                        text "> Gọi cảnh (Call)" size 12 bold True color "#ffffff" align (0.5, 0.5)
+                                        text _t("call_btn") size 12 bold True color "#ffffff" align (0.5, 0.5)
 
                 # THANH ĐIỀU HƯỚNG PHÂN TRANG LABELS (NHƯ CŨ - KHÔNG DÙNG THANH CUỘN)
                 hbox:
@@ -3581,9 +4021,9 @@ screen cheat_main_modal():
                         hover_background ("#38bdf8" if curr_lp > 1 else "#334155")
                         ysize 30
                         padding (14, 0)
-                        text "< Trang trước" size 12 bold True color "#ffffff" align (0.5, 0.5)
+                        text _t("page_prev") size 12 bold True color "#ffffff" align (0.5, 0.5)
 
-                    $ lbl_page_info = "Trang %d / %d (Tổng %d labels)" % (curr_lp, max_lp, total_lbl_count)
+                    $ lbl_page_info = _t("page_info_labels", curr_lp, max_lp, total_lbl_count)
                     text "[lbl_page_info]" size 13 bold True color "#38bdf8" yalign 0.5
 
                     button:
@@ -3592,7 +4032,7 @@ screen cheat_main_modal():
                         hover_background ("#38bdf8" if curr_lp < max_lp else "#334155")
                         ysize 30
                         padding (14, 0)
-                        text "Trang sau >" size 12 bold True color "#ffffff" align (0.5, 0.5)
+                        text _t("page_next") size 12 bold True color "#ffffff" align (0.5, 0.5)
 
             # ==================================================================
             # TAB 3: MỞ KHÓA & HỆ THỐNG (UNLOCKS & SYSTEM)
@@ -3608,21 +4048,32 @@ screen cheat_main_modal():
                         spacing 14
                         xfill True
 
+                        # Card Cài đặt ngôn ngữ (Language Settings Card)
                         frame:
                             xfill True
                             background "#1e293b88"
                             padding (16, 14)
                             vbox:
                                 spacing 8
-                                text "Mở khóa toàn bộ Thư viện ảnh (Gallery & CG)" size 16 bold True color "#38bdf8"
-                                text "Tự động kích hoạt toàn bộ hình ảnh và cờ persistent lưu trữ Gallery/Replay." size 12 color "#94a3b8"
-                                button:
-                                    action Function(cheat_unlock_all_gallery)
-                                    background "#0284c7"
-                                    hover_background "#38bdf8"
-                                    ysize 32
-                                    padding (14, 0)
-                                    text "KÍCH HOẠT MỞ KHÓA TOÀN BỘ GALLERY" size 13 bold True color "#ffffff" align (0.5, 0.5)
+                                text _t("lang_section_title") size 16 bold True color "#38bdf8"
+                                text _t("lang_section_desc") size 12 color "#94a3b8"
+                                hbox:
+                                    spacing 10
+                                    for l_code, l_name, l_badge in CHEAT_LANGUAGES:
+                                        $ is_l_active = (cheat_get_lang() == l_code)
+                                        button:
+                                            action Function(cheat_set_lang, l_code)
+                                            background ("#0284c7" if is_l_active else "#334155")
+                                            hover_background ("#0369a1" if is_l_active else "#475569")
+                                            ysize 32
+                                            padding (16, 0)
+                                            hbox:
+                                                spacing 8
+                                                align (0.5, 0.5)
+                                                text "[l_badge]" size 11 bold True color ("#ffffff" if is_l_active else "#94a3b8") yalign 0.5
+                                                text "[l_name]" size 12 bold is_l_active color ("#ffffff" if is_l_active else "#cbd5e1") yalign 0.5
+                                                if is_l_active:
+                                                    text "✓" size 13 bold True color "#4ade80" yalign 0.5
 
                         frame:
                             xfill True
@@ -3630,12 +4081,28 @@ screen cheat_main_modal():
                             padding (16, 14)
                             vbox:
                                 spacing 8
-                                text "Chế độ Nhà phát triển (Developer Console)" size 16 bold True color "#38bdf8"
-                                text "Mở khóa phím tắt Shift + O để bật Console gõ lệnh Python trực tiếp của Ren'Py." size 12 color "#94a3b8"
+                                text _t("gallery_title") size 16 bold True color "#38bdf8"
+                                text _t("gallery_desc") size 12 color "#94a3b8"
+                                button:
+                                    action Function(cheat_unlock_all_gallery)
+                                    background "#0284c7"
+                                    hover_background "#38bdf8"
+                                    ysize 32
+                                    padding (14, 0)
+                                    text _t("gallery_btn") size 13 bold True color "#ffffff" align (0.5, 0.5)
+
+                        frame:
+                            xfill True
+                            background "#1e293b88"
+                            padding (16, 14)
+                            vbox:
+                                spacing 8
+                                text _t("dev_title") size 16 bold True color "#38bdf8"
+                                text _t("dev_desc") size 12 color "#94a3b8"
                                 hbox:
                                     spacing 12
                                     yalign 0.5
-                                    text ("Trạng thái: ĐÃ KÍCH HOẠT" if getattr(config, 'developer', False) else "Trạng thái: CHƯA KÍCH HOẠT") size 13 bold True color ("#10b981" if getattr(config, 'developer', False) else "#ef4444")
+                                    text (_t("dev_active") if getattr(config, 'developer', False) else _t("dev_inactive")) size 13 bold True color ("#10b981" if getattr(config, 'developer', False) else "#ef4444")
                                     if not getattr(config, 'developer', False):
                                         button:
                                             action Function(cheat_enable_developer)
@@ -3643,7 +4110,7 @@ screen cheat_main_modal():
                                             hover_background "#059669"
                                             ysize 26
                                             padding (10, 0)
-                                            text "Bật Developer Mode" size 12 color "#ffffff" align (0.5, 0.5)
+                                            text _t("dev_btn") size 12 color "#ffffff" align (0.5, 0.5)
 
                         frame:
                             xfill True
@@ -3651,15 +4118,15 @@ screen cheat_main_modal():
                             padding (16, 14)
                             vbox:
                                 spacing 8
-                                text "Bỏ qua không giới hạn (Force Skip Unseen Text)" size 16 bold True color "#38bdf8"
-                                text "Cho phép Skip tua nhanh qua cả những đoạn thoại chưa từng xem qua trước đây mà không bị dừng." size 12 color "#94a3b8"
+                                text _t("skip_title") size 16 bold True color "#38bdf8"
+                                text _t("skip_desc") size 12 color "#94a3b8"
                                 button:
                                     action Function(cheat_enable_force_skip_permanent)
                                     background "#059669"
                                     hover_background "#10b981"
                                     ysize 28
                                     padding (12, 0)
-                                    text "Kích hoạt Force Skip Vĩnh Viễn" size 12 bold True color "#ffffff" align (0.5, 0.5)
+                                    text _t("skip_btn") size 12 bold True color "#ffffff" align (0.5, 0.5)
 
                         frame:
                             xfill True
@@ -3667,8 +4134,8 @@ screen cheat_main_modal():
                             padding (16, 14)
                             vbox:
                                 spacing 8
-                                text "Bảo vệ con lăn chuột & Chống lỗi tua ngược (Rollback Fix)" size 16 bold True color "#38bdf8"
-                                text "Khắc phục triệt để lỗi Crash / Exception ở các game bị hỏng tính năng Rollback khi lăn chuột ngược lại." size 12 color "#94a3b8"
+                                text _t("wheel_title") size 16 bold True color "#38bdf8"
+                                text _t("wheel_desc") size 12 color "#94a3b8"
 
                                 $ curr_wf = getattr(persistent, 'cm_wheel_fix_mode', 'off')
                                 $ curr_dr = getattr(persistent, 'cm_disable_rollback', False)
@@ -3676,13 +4143,13 @@ screen cheat_main_modal():
                                 hbox:
                                     spacing 10
                                     yalign 0.5
-                                    text "Chế độ con lăn:" size 13 bold True color "#f1f5f9"
+                                    text _t("wheel_mode") size 13 bold True color "#f1f5f9"
                                     if curr_wf == 'history':
-                                        text "ĐANG BẬT: Mở Lịch sử thoại (Xem lại thoại an toàn, không Rollback)" size 12 bold True color "#10b981"
+                                        text _t("wheel_active_log") size 12 bold True color "#10b981"
                                     elif curr_wf == 'disable':
-                                        text "ĐANG BẬT: Khóa con lăn chuột (Vô hiệu hóa hoàn toàn)" size 12 bold True color "#f59e0b"
+                                        text _t("wheel_active_lock") size 12 bold True color "#f59e0b"
                                     else:
-                                        text "ĐANG TẮT: Mặc định gốc của game" size 12 color "#94a3b8"
+                                        text _t("wheel_active_off") size 12 color "#94a3b8"
 
                                 hbox:
                                     spacing 8
@@ -3692,7 +4159,7 @@ screen cheat_main_modal():
                                         hover_background ("#38bdf8" if curr_wf == 'history' else "#475569")
                                         ysize 30
                                         padding (12, 0)
-                                        text "1. Mở Lịch Sử Thoại (Khuyên Dùng)" size 11 bold True color "#ffffff" align (0.5, 0.5)
+                                        text _t("wheel_opt1") size 11 bold True color "#ffffff" align (0.5, 0.5)
 
                                     button:
                                         action Function(cheat_set_wheel_fix_mode, 'disable')
@@ -3700,7 +4167,7 @@ screen cheat_main_modal():
                                         hover_background ("#f59e0b" if curr_wf == 'disable' else "#475569")
                                         ysize 30
                                         padding (12, 0)
-                                        text "2. Khóa Con Lăn Chuột" size 11 bold True color "#ffffff" align (0.5, 0.5)
+                                        text _t("wheel_opt2") size 11 bold True color "#ffffff" align (0.5, 0.5)
 
                                     button:
                                         action Function(cheat_set_wheel_fix_mode, 'off')
@@ -3708,24 +4175,24 @@ screen cheat_main_modal():
                                         hover_background "#64748b"
                                         ysize 30
                                         padding (12, 0)
-                                        text "3. Khôi Phục Mặc Định" size 11 color "#ffffff" align (0.5, 0.5)
+                                        text _t("wheel_opt3") size 11 color "#ffffff" align (0.5, 0.5)
 
                                 hbox:
                                     spacing 10
                                     yalign 0.5
-                                    text "Khóa Rollback toàn hệ thống:" size 12 color "#cbd5e1"
+                                    text _t("rollback_lock_label") size 12 color "#cbd5e1"
                                     button:
                                         action Function(cheat_toggle_disable_rollback)
                                         background ("#e11d48" if curr_dr else "#334155")
                                         hover_background ("#f43f5e" if curr_dr else "#475569")
                                         ysize 26
                                         padding (10, 0)
-                                        text ("ĐANG KHÓA (Bảo vệ tuyệt đối)" if curr_dr else "Đang mở (Bình thường)") size 11 bold True color "#ffffff" align (0.5, 0.5)
+                                        text (_t("rollback_locked") if curr_dr else _t("rollback_unlocked")) size 11 bold True color "#ffffff" align (0.5, 0.5)
 
                                 hbox:
                                     spacing 10
                                     yalign 0.5
-                                    text "Phím tắt đơn H, S, A, L (Tắt nếu game dùng WASD):" size 12 color "#cbd5e1"
+                                    text _t("single_key_label") size 12 color "#cbd5e1"
                                     $ curr_sks = getattr(persistent, 'cm_single_key_shortcuts', True)
                                     button:
                                         action [ToggleField(persistent, 'cm_single_key_shortcuts'), Function(renpy.restart_interaction)]
@@ -3733,7 +4200,7 @@ screen cheat_main_modal():
                                         hover_background ("#38bdf8" if curr_sks else "#475569")
                                         ysize 26
                                         padding (10, 0)
-                                        text ("Đang Bật (H, S, A, L)" if curr_sks else "Đã Tắt (Ưu tiên phím game)") size 11 bold True color "#ffffff" align (0.5, 0.5)
+                                        text (_t("single_key_on") if curr_sks else _t("single_key_off")) size 11 bold True color "#ffffff" align (0.5, 0.5)
 
                         frame:
                             xfill True
@@ -3741,20 +4208,20 @@ screen cheat_main_modal():
                             padding (16, 14)
                             vbox:
                                 spacing 8
-                                text "Tự động cứu hộ & Chống sập game khi gặp lỗi (Auto-Crash Recovery)" size 16 bold True color "#38bdf8"
-                                text "Khi game xảy ra lỗi kịch bản / tràn biến: Tự động ghi lại lỗi vào cheat_crash_log.txt, tự sửa biến và cho phép game tiếp tục chạy thay vì văng sập ra Desktop." size 12 color "#94a3b8"
+                                text _t("recovery_title") size 16 bold True color "#38bdf8"
+                                text _t("recovery_desc") size 12 color "#94a3b8"
                                 hbox:
                                     spacing 12
                                     yalign 0.5
                                     $ curr_rec = getattr(persistent, 'cm_auto_recover_crash', True)
-                                    text ("Trạng thái: ĐANG BẬT BẢO VỆ TỰ ĐỘNG" if curr_rec else "Trạng thái: ĐÃ TẮT BẢO VỆ") size 13 bold True color ("#10b981" if curr_rec else "#ef4444")
+                                    text (_t("recovery_status_on") if curr_rec else _t("recovery_status_off")) size 13 bold True color ("#10b981" if curr_rec else "#ef4444")
                                     button:
                                         action [ToggleField(persistent, 'cm_auto_recover_crash'), Function(renpy.restart_interaction)]
                                         background ("#059669" if curr_rec else "#e11d48")
                                         hover_background ("#10b981" if curr_rec else "#f43f5e")
                                         ysize 26
                                         padding (12, 0)
-                                        text ("BẬT (Khuyên dùng)" if curr_rec else "TẮT") size 12 bold True color "#ffffff" align (0.5, 0.5)
+                                        text (_t("recovery_btn_on") if curr_rec else _t("recovery_btn_off")) size 12 bold True color "#ffffff" align (0.5, 0.5)
 
                         frame:
                             xfill True
@@ -3762,15 +4229,15 @@ screen cheat_main_modal():
                             padding (16, 14)
                             vbox:
                                 spacing 8
-                                text "Đồng bộ Cheat Menu sang tất cả game Ren'Py (1-Click Multi-Game Sync)" size 16 bold True color "#38bdf8"
-                                text "Tự động quét toàn bộ thư mục G:\\TeraBoxDownload\\Ren'Py và cập nhật bản cheat_menu.rpy mới nhất này sang tất cả các game khác chỉ trong 1 giây." size 12 color "#94a3b8"
+                                text _t("sync_games_title") size 16 bold True color "#38bdf8"
+                                text _t("sync_games_desc") size 12 color "#94a3b8"
                                 button:
                                     action Function(cheat_sync_all_games)
                                     background "#8b5cf6"
                                     hover_background "#a78bfa"
                                     ysize 32
                                     padding (16, 0)
-                                    text "⚡ KÍCH HOẠT ĐỒNG BỘ CHO TẤT CẢ CÁC GAME NGAY" size 13 bold True color "#ffffff" align (0.5, 0.5)
+                                    text _t("sync_games_btn") size 13 bold True color "#ffffff" align (0.5, 0.5)
 
             # ==================================================================
             # TAB 4: DỊCH THUẬT (AUTO-TRANSLATE EN -> VI)
@@ -3788,9 +4255,9 @@ screen cheat_main_modal():
                             padding (24, 20)
                             vbox:
                                 spacing 10
-                                text "(!) CHƯA KÍCH HOẠT MODULE DỊCH THUẬT" size 18 bold True color "#ef4444"
-                                text "Cơ chế dịch thuật đã được tách thành module độc lập: 'cheat_translate.rpy'." size 13 color "#f8fafc"
-                                text "Theo thiết kế mới, Cheat Menu dùng chung menu phiên dịch với 'cheat_translate.rpy' và 'AI_trans_pry'." size 12 color "#94a3b8"
+                                text _t("trans_not_active") size 18 bold True color "#ef4444"
+                                text _t("trans_info1") size 13 color "#f8fafc"
+                                text _t("trans_info2") size 12 color "#94a3b8"
 
                         frame:
                             xfill True
@@ -3798,10 +4265,10 @@ screen cheat_main_modal():
                             padding (20, 16)
                             vbox:
                                 spacing 8
-                                text "(Hướng dẫn) Cách kích hoạt:" size 14 bold True color "#38bdf8"
-                                text "1. Đảm bảo file 'cheat_translate.rpy' nằm cùng thư mục game với 'cheat_menu.rpy'." size 12 color "#cbd5e1"
-                                text "2. Đảm bảo thư mục 'AI_trans_pry' nằm trong thư mục game." size 12 color "#cbd5e1"
-                                text "3. Khởi động lại game, Cheat Menu sẽ tự động phát hiện và mở khóa toàn bộ tính năng dịch thuật!" size 12 color "#cbd5e1"
+                                text _t("trans_guide_title") size 14 bold True color "#38bdf8"
+                                text _t("trans_guide1") size 12 color "#cbd5e1"
+                                text _t("trans_guide2") size 12 color "#cbd5e1"
+                                text _t("trans_guide3") size 12 color "#cbd5e1"
 
             # ==================================================================
             # TAB 5: PHÍM TẮT & TRỢ GIÚP
@@ -3811,33 +4278,33 @@ screen cheat_main_modal():
                     spacing 10
                     ysize 470
 
-                    text "DANH SÁCH PHÍM TẮT TIỆN LỢI (HOTKEYS):" size 15 bold True color "#38bdf8"
+                    text _t("hotkeys_title") size 15 bold True color "#38bdf8"
 
                     grid 2 8:
                         spacing 6
-                        text "• Phím [[ ` ]] hoặc [[ ~ ]] hoặc [[ Shift + C ]]" size 12 color "#f1f5f9"
-                        text ": Mở / Đóng Bảng điều khiển Cheat chính" size 12 color "#94a3b8"
+                        text _t("hk_menu_key") size 12 color "#f1f5f9"
+                        text _t("hk_menu_desc") size 12 color "#94a3b8"
 
-                        text "• Phím [[ * ]] (Dấu sao Numpad)" size 12 color "#f1f5f9"
-                        text ": Thu gọn / Mở rộng Thanh nổi bên phải" size 12 color "#94a3b8"
+                        text _t("hk_star_key") size 12 color "#f1f5f9"
+                        text _t("hk_star_desc") size 12 color "#94a3b8"
 
-                        text "• Phím [[ Alt + * ]]" size 12 color "#f1f5f9"
-                        text ": Bật / Tắt ẩn hoàn toàn Thanh nổi bên phải" size 12 color "#94a3b8"
+                        text _t("hk_alt_star_key") size 12 color "#f1f5f9"
+                        text _t("hk_alt_star_desc") size 12 color "#94a3b8"
 
-                        text "• Phím [[ H ]]" size 12 color "#f1f5f9"
-                        text ": Ẩn khung thoại (Hide UI) để xem trọn vẹn CG / hình nền" size 12 color "#94a3b8"
+                        text _t("hk_h_key") size 12 color "#f1f5f9"
+                        text _t("hk_h_desc") size 12 color "#94a3b8"
 
-                        text "• Phím [[ S ]]" size 12 color "#f1f5f9"
-                        text ": Bật / Tắt Tua nhanh (Tua qua tất cả hội thoại, kể cả chưa đọc)" size 12 color "#94a3b8"
+                        text _t("hk_s_key") size 12 color "#f1f5f9"
+                        text _t("hk_s_desc") size 12 color "#94a3b8"
 
-                        text "• Phím [[ A ]]" size 12 color "#f1f5f9"
-                        text ": Bật / Tắt chế độ Tự động đọc thoại (Auto-Forward)" size 12 color "#94a3b8"
+                        text _t("hk_a_key") size 12 color "#f1f5f9"
+                        text _t("hk_a_desc") size 12 color "#94a3b8"
 
-                        text "• Phím [[ Shift + O ]]" size 12 color "#f1f5f9"
-                        text ": Mở Console dòng lệnh Python gốc của Ren'Py" size 12 color "#94a3b8"
+                        text _t("hk_dev_key") size 12 color "#f1f5f9"
+                        text _t("hk_dev_desc") size 12 color "#94a3b8"
 
-                        text "• Con lăn chuột (Lăn lên)" size 12 color "#f1f5f9"
-                        text ": Chống lỗi Rollback (Tùy chọn: Mở Lịch sử thoại / Khóa Rollback)" size 12 color "#94a3b8"
+                        text _t("hk_wheel_key") size 12 color "#f1f5f9"
+                        text _t("hk_wheel_desc") size 12 color "#94a3b8"
 
                     frame:
                         xfill True
@@ -3848,17 +4315,17 @@ screen cheat_main_modal():
                             hbox:
                                 spacing 8
                                 yalign 0.5
-                                text "ĐỒNG BỘ KÍCH CỠ GIAO DIỆN (AUTO-SCALING & UI SCALE):" size 12 bold True color "#38bdf8"
+                                text _t("scaling_title") size 12 bold True color "#38bdf8"
                                 $ curr_res_txt = "%dx%d" % (int(config.screen_width), int(config.screen_height))
-                                text "(Độ phân giải game: [curr_res_txt])" size 11 color "#94a3b8" yalign 0.5
+                                text _t("game_res", curr_res_txt) size 11 color "#94a3b8" yalign 0.5
 
-                            text "Cheat Menu tự động nhận diện độ phân giải game và scale tỷ lệ chuẩn (100% không can thiệp hay thay đổi cấu hình gốc của game). Bạn có thể chọn nhanh kích cỡ mong muốn:" size 11 color "#cbd5e1"
+                            text _t("scaling_desc") size 11 color "#cbd5e1"
 
                             hbox:
                                 spacing 6
                                 yalign 0.5
                                 text "Preset:" size 11 color "#94a3b8" yalign 0.5
-                                for p_val, p_lbl in [(0.8, "80%"), (0.9, "90%"), (1.0, "100% (Chuẩn)"), (1.1, "110%"), (1.2, "120% (Lớn)"), (1.3, "130%")]:
+                                for p_val, p_lbl in [(0.8, "80%"), (0.9, "90%"), (1.0, "100%"), (1.1, "110%"), (1.2, "120%"), (1.3, "130%")]:
                                     $ is_p_act = (abs(float(getattr(persistent, 'cm_ui_scale_user', 1.0) or 1.0) - p_val) < 0.04)
                                     button:
                                         action Function(cheat_set_ui_scale, p_val)
@@ -3872,7 +4339,57 @@ screen cheat_main_modal():
                         xfill True
                         background "#1e293b66"
                         padding (12, 8)
-                        text "(Mẹo) Bấm vào nút (*) để ghim biến quan trọng lên đầu. Bấm vào nút KHÓA để đóng băng giá trị không bao giờ bị giảm!" size 11 color "#fbbf24"
+                        text _t("tip_pinned") size 11 color "#fbbf24"
+
+    # Menu danh sách chọn ngôn ngữ dạng Dropdown Popover (Language Dropdown)
+    if getattr(cheat_menu_state, 'show_lang_dropdown', False):
+        frame:
+            at cheat_modal_scaler(_cm_scale)
+            align (0.5, 0.5)
+            xsize 380
+            ysize 240
+            background "#0f172af8"
+            padding (18, 16)
+
+            vbox:
+                spacing 12
+                xfill True
+                yfill True
+
+                hbox:
+                    xfill True
+                    yalign 0.5
+                    text _t("select_language") size 15 bold True color "#38bdf8"
+                    textbutton "✕":
+                        action SetField(cheat_menu_state, 'show_lang_dropdown', False)
+                        text_size 15
+                        text_color "#94a3b8"
+                        text_hover_color "#f43f5e"
+
+                frame:
+                    xfill True
+                    ysize 1
+                    background "#334155"
+
+                vbox:
+                    spacing 8
+                    xfill True
+                    for l_code, l_name, l_badge in CHEAT_LANGUAGES:
+                        $ is_l_active = (cheat_get_lang() == l_code)
+                        button:
+                            action [Function(cheat_set_lang, l_code), SetField(cheat_menu_state, 'show_lang_dropdown', False)]
+                            xfill True
+                            ysize 42
+                            background ("#0284c7" if is_l_active else "#1e293b")
+                            hover_background ("#0369a1" if is_l_active else "#334155")
+                            padding (14, 8)
+                            hbox:
+                                spacing 12
+                                yalign 0.5
+                                text "[l_badge]" size 12 bold True color ("#ffffff" if is_l_active else "#94a3b8") yalign 0.5
+                                text "[l_name]" size 13 bold is_l_active color ("#ffffff" if is_l_active else "#cbd5e1") yalign 0.5
+                                if is_l_active:
+                                    text "✓" size 14 bold True color "#4ade80" xalign 1.0 yalign 0.5
 
     # Phím tắt xác nhận khi đang nhập số hoặc sửa bản dịch
     if cheat_menu_state.active_edit_var is not None:
@@ -3897,6 +4414,7 @@ screen cheat_history_modal():
     modal True
     zorder 1200
     style_prefix "cheat"
+    $ _t = cheat_tr
 
     key "K_ESCAPE" action Hide("cheat_history_modal")
     key "l" action Hide("cheat_history_modal")
@@ -3931,10 +4449,10 @@ screen cheat_history_modal():
                     hbox:
                         spacing 8
                         yalign 0.5
-                        text "NHẬT KÝ HỘI THOẠI & ĐIỂM QUAY LẠI (HISTORY LOG)" size 16 bold True color "#f8fafc"
-                        $ hist_count_txt = "(%d câu thoại)" % total_hist
+                        text _t("hist_title") size 16 bold True color "#f8fafc"
+                        $ hist_count_txt = _t("hist_count", total_hist)
                         text "[hist_count_txt]" size 12 bold True color "#38bdf8" yalign 0.5
-                    text "Bấm trực tiếp vào câu thoại hoặc nút Quay lại để nhảy ngược game về thời điểm đó." size 11 color "#94a3b8"
+                    text _t("hist_desc") size 11 color "#94a3b8"
 
                 hbox:
                     xalign 1.0
@@ -3945,7 +4463,7 @@ screen cheat_history_modal():
                         background "#e11d48"
                         hover_background "#f43f5e"
                         padding (14, 6)
-                        text "X ĐÓNG" size 12 bold True color "#ffffff"
+                        text _t("close") size 12 bold True color "#ffffff"
 
             # ĐƯỜNG PHÂN CÁCH
             frame:
@@ -3960,8 +4478,8 @@ screen cheat_history_modal():
                     yfill True
                     align (0.5, 0.5)
                     spacing 8
-                    text "Chưa có dữ liệu lịch sử hội thoại nào được ghi lại." size 15 bold True color "#94a3b8" align (0.5, 0.5)
-                    text "Hãy tiếp tục chơi qua vài câu thoại rồi mở lại bảng này nhé!" size 12 color "#64748b" align (0.5, 0.5)
+                    text _t("hist_empty_title") size 15 bold True color "#94a3b8" align (0.5, 0.5)
+                    text _t("hist_empty_desc") size 12 color "#64748b" align (0.5, 0.5)
             else:
                 viewport:
                     scrollbars "vertical"
@@ -4018,13 +4536,13 @@ screen cheat_history_modal():
                                         hover_background "#38bdf8"
                                         padding (10, 5)
                                         xsize 100
-                                        text "< Quay lại" size 11 bold True color "#ffffff" align (0.5, 0.5)
+                                        text _t("hist_restore") size 11 bold True color "#ffffff" align (0.5, 0.5)
 
             # --- FOOTER ---
             hbox:
                 xfill True
                 yalign 0.5
-                text "Mẹo: Lăn chuột để cuộn danh sách | Bấm vào bất kỳ câu nào để quay lại." size 11 color "#64748b"
+                text _t("hist_footer_tip") size 11 color "#64748b"
                 hbox:
                     xalign 1.0
                     spacing 8
@@ -4033,7 +4551,7 @@ screen cheat_history_modal():
                         background "#334155"
                         hover_background "#475569"
                         padding (8, 4)
-                        text "Mở History gốc của game" size 11 color "#cbd5e1"
+                        text _t("hist_open_game") size 11 color "#cbd5e1"
 
 # ==============================================================================
 # BẢO VỆ CẤU HÌNH STYLE LẦN CUỐI SAU KHI GAME LOAD XONG (POST-INIT IMMUNITY)
