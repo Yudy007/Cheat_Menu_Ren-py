@@ -1225,20 +1225,24 @@ init -999 python:
             'trans_guide2': "2. Ensure 'AI_trans_pry' folder is present in the game directory.",
             'trans_guide3': '3. Restart the game to automatically enable translation features!',
             'hotkeys_title': 'KEYBOARD SHORTCUTS (HOTKEYS):',
-            'hk_menu_key': u'• Keys [[ ` ]] or [[ ~ ]] or [[ Shift + C ]]',
+            'hk_menu_key': u'• Keys [[Tab] / [[F1] / [[~] / [[Shift + C]',
             'hk_menu_desc': ': Open / Close Main Cheat Dashboard',
-            'hk_star_key': u'• Key [[ * ]] (Numpad Asterisk)',
+            'hk_star_key': u'• Key [[*] (Numpad Asterisk)',
             'hk_star_desc': ': Collapse / Expand Floating Sidebar',
-            'hk_alt_star_key': u'• Keys [[ Alt + * ]]',
+            'hk_alt_star_key': u'• Keys [[Alt + *]',
             'hk_alt_star_desc': ': Show / Hide Floating Sidebar completely',
-            'hk_h_key': u'• Key [[ H ]]',
+            'hk_h_key': u'• Key [[H]',
             'hk_h_desc': ': Hide UI to view full CG / background',
-            'hk_s_key': u'• Key [[ S ]]',
+            'hk_s_key': u'• Key [[S]',
             'hk_s_desc': ': Toggle Force Skip (fast forward all text)',
-            'hk_a_key': u'• Key [[ A ]]',
+            'hk_a_key': u'• Key [[A]',
             'hk_a_desc': ': Toggle Auto-Forward text mode',
-            'hk_dev_key': u'• Keys [[ Shift + O ]]',
+            'hk_l_key': u'• Key [[L]',
+            'hk_l_desc': ': Open Dialogue History & Restore Points',
+            'hk_dev_key': u'• Keys [[Shift + O]',
             'hk_dev_desc': ": Open Ren'Py native Python console",
+            'hk_cloud_key': u'• Keys [[Shift + F11] / [[Shift + F10]',
+            'hk_cloud_desc': ': GitHub Auto-Repair & Update / Clean Cache',
             'hk_wheel_key': u'• Mouse Wheel (Scroll Up)',
             'hk_wheel_desc': ': Anti-crash Rollback (Open History / Lock Rollback)',
             'scaling_title': 'UI AUTO-SCALING & DISPLAY PRESETS:',
@@ -1386,20 +1390,24 @@ init -999 python:
             'trans_guide2': u"2. Đảm bảo thư mục 'AI_trans_pry' nằm trong thư mục game.",
             'trans_guide3': u'3. Khởi động lại game, Cheat Menu sẽ tự động phát hiện và mở khóa toàn bộ tính năng dịch thuật!',
             'hotkeys_title': u'DANH SÁCH PHÍM TẮT TIỆN LỢI (HOTKEYS):',
-            'hk_menu_key': u'• Phím [[ ` ]] hoặc [[ ~ ]] hoặc [[ Shift + C ]]',
+            'hk_menu_key': u'• Phím [[Tab] / [[F1] / [[~] / [[Shift + C]',
             'hk_menu_desc': u': Mở / Đóng Bảng điều khiển Cheat chính',
-            'hk_star_key': u'• Phím [[ * ]] (Dấu sao Numpad)',
+            'hk_star_key': u'• Phím [[*] (Phím sao Numpad)',
             'hk_star_desc': u': Thu gọn / Mở rộng Thanh nổi bên phải',
-            'hk_alt_star_key': u'• Keys [[ Alt + * ]]',
+            'hk_alt_star_key': u'• Phím [[Alt + *]',
             'hk_alt_star_desc': u': Bật / Tắt ẩn hoàn toàn Thanh nổi bên phải',
-            'hk_h_key': u'• Phím [[ H ]]',
+            'hk_h_key': u'• Phím [[H]',
             'hk_h_desc': u': Ẩn khung thoại (Hide UI) để xem trọn vẹn CG / hình nền',
-            'hk_s_key': u'• Phím [[ S ]]',
+            'hk_s_key': u'• Phím [[S]',
             'hk_s_desc': u': Bật / Tắt Tua nhanh (Tua qua tất cả hội thoại, kể cả chưa đọc)',
-            'hk_a_key': u'• Phím [[ A ]]',
+            'hk_a_key': u'• Phím [[A]',
             'hk_a_desc': u': Bật / Tắt chế độ Tự động đọc thoại (Auto-Forward)',
-            'hk_dev_key': u'• Phím [[ Shift + O ]]',
+            'hk_l_key': u'• Phím [[L]',
+            'hk_l_desc': u': Mở Nhật ký thoại & Điểm quay lại (History Log)',
+            'hk_dev_key': u'• Phím [[Shift + O]',
             'hk_dev_desc': u": Mở Console dòng lệnh Python gốc của Ren'Py",
+            'hk_cloud_key': u'• Phím [[Shift + F11] / [[Shift + F10]',
+            'hk_cloud_desc': u': Tải bản mới từ GitHub Cloud / Dọn sạch Cache Bytecode',
             'hk_wheel_key': u'• Con lăn chuột (Lăn lên)',
             'hk_wheel_desc': u': Chống lỗi Rollback (Tùy chọn: Mở Lịch sử thoại / Khóa Rollback)',
             'scaling_title': u'ĐỒNG BỘ KÍCH CỠ GIAO DIỆN (AUTO-SCALING & UI SCALE):',
@@ -4280,8 +4288,8 @@ screen cheat_main_modal():
 
                     text _t("hotkeys_title") size 15 bold True color "#38bdf8"
 
-                    grid 2 8:
-                        spacing 6
+                    grid 2 10:
+                        spacing 5
                         text _t("hk_menu_key") size 12 color "#f1f5f9"
                         text _t("hk_menu_desc") size 12 color "#94a3b8"
 
@@ -4300,8 +4308,14 @@ screen cheat_main_modal():
                         text _t("hk_a_key") size 12 color "#f1f5f9"
                         text _t("hk_a_desc") size 12 color "#94a3b8"
 
+                        text _t("hk_l_key") size 12 color "#f1f5f9"
+                        text _t("hk_l_desc") size 12 color "#94a3b8"
+
                         text _t("hk_dev_key") size 12 color "#f1f5f9"
                         text _t("hk_dev_desc") size 12 color "#94a3b8"
+
+                        text _t("hk_cloud_key") size 12 color "#f1f5f9"
+                        text _t("hk_cloud_desc") size 12 color "#94a3b8"
 
                         text _t("hk_wheel_key") size 12 color "#f1f5f9"
                         text _t("hk_wheel_desc") size 12 color "#94a3b8"
