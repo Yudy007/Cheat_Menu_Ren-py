@@ -47,6 +47,30 @@ python early:
         except Exception:
             pass
 
+    # Khắc phục triệt để lỗi: Exception("Could not find font ...") 
+    # (Đặc biệt là 'AI_trans_pry/font/font.ttf' hoặc các font mod dịch thuật bị thiếu)
+    try:
+        import renpy.text.font as _font_mod
+        if hasattr(_font_mod, 'load_face'):
+            _orig_load_face = _font_mod.load_face
+            if not getattr(_orig_load_face, '_cheat_conn_font_hooked', False):
+                def _safe_load_face(fn, *args, **kwargs):
+                    try:
+                        return _orig_load_face(fn, *args, **kwargs)
+                    except Exception as _orig_err:
+                        _fallback_candidates = ("font.ttf", "DejaVuSans.ttf", "Cinzel-Regular.ttf")
+                        for _fb in _fallback_candidates:
+                            if _fb != fn:
+                                try:
+                                    return _orig_load_face(_fb, *args, **kwargs)
+                                except Exception:
+                                    pass
+                        raise _orig_err
+                _safe_load_face._cheat_conn_font_hooked = True
+                _font_mod.load_face = _safe_load_face
+    except Exception:
+        pass
+
     # 1.1 Xác định chính xác thư mục game hiện tại
     def _cheat_conn_get_gamedir():
         try:
@@ -186,6 +210,19 @@ python early:
             _cheat_conn_log("font.ttf not found. Downloading from GitHub...")
             if _cheat_conn_download_from_github(_cheat_conn_github_font_url, _cheat_conn_target_font):
                 _cheat_conn_log("Downloaded font.ttf from GitHub successfully.")
+
+        # Tự động đảm bảo thư mục và file font cho module dịch AI_trans_pry nếu cần
+        try:
+            _ai_font_dir = os.path.join(_cheat_conn_gamedir, "AI_trans_pry", "font")
+            _ai_font_path = os.path.join(_ai_font_dir, "font.ttf")
+            if not os.path.isfile(_ai_font_path):
+                if not os.path.isdir(_ai_font_dir):
+                    os.makedirs(_ai_font_dir)
+                if os.path.isfile(_cheat_conn_target_font):
+                    shutil.copyfile(_cheat_conn_target_font, _ai_font_path)
+                    _cheat_conn_log("Auto-created AI_trans_pry/font/font.ttf from font.ttf.")
+        except Exception:
+            pass
 
         # 1.6 Dọn dẹp cache .rpyc cũ nếu phát hiện file nguồn .rpy mới hơn
         if os.path.isfile(_cheat_conn_target_file) and os.path.isfile(_cheat_conn_target_rpyc):
