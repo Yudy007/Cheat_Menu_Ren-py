@@ -7,7 +7,7 @@
 ## ✨ Điểm Nổi Bật
 
 1. **Kết Nối 1-Click (Chỉ 1 file duy nhất):**
-   - Chỉ cần thả file `cheat_connect.rpy` (hoặc `00_cheat_connect.rpy`) vào thư mục `game/` của bất kỳ game Ren'Py nào.
+   - Chỉ cần thả file `cheat_connect.rpy` vào thư mục `game/` của bất kỳ game Ren'Py nào.
    - Tự động nạp động (Dynamic Script Injection) ngay từ lần mở game đầu tiên — **không cần khởi động 2 lần**.
    - Tự động kết nối và kéo bản mới nhất trực tiếp từ GitHub Cloud.
 
@@ -38,11 +38,3 @@
 | <kbd>Tab</kbd> / <kbd>F1</kbd> / <kbd>~</kbd> | Bật / Tắt Menu Cheat Chính |
 | <kbd>Shift</kbd> + <kbd>F11</kbd> | **Tải bản mới nhất từ GitHub & Tự sửa lỗi ngay lập tức** |
 | <kbd>Shift</kbd> + <kbd>F10</kbd> | **Xóa sạch Cache Bytecode (`.rpyc`) và khởi động lại game sạch sẽ** |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F12</kbd> | **[Chủ sở hữu] Đẩy bản sửa lỗi trực tiếp lên GitHub qua API** |
-
----
-
-## 🛠️ Tác Giả & Đóng Góp
-
-* **Tác giả:** [Yudy007](https://github.com/Yudy007)
-* **Kho lưu trữ:** [Cheat_Menu_Ren-py](https://github.com/Yudy007/Cheat_Menu_Ren-py)
