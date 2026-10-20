@@ -13,7 +13,7 @@
 
 ### 2. ⚡ Kết Nối 1-Click (1-Click Cloud Connector)
 - Chỉ cần thả duy nhất file `cheat_connect.rpy` vào thư mục `game/` của bất kỳ game Ren'Py nào.
-- **Nạp động tức thì (Dynamic Script Injection):** Cheat Menu được tự động tải về từ GitHub và nạp thẳng vào engine ngay trong vòng lặp nạp kịch bản đầu tiên — **chạy ngay lập tức mà không cần khởi động lại game 2 lần**.
+- **Nạp động tức thì (Dynamic Script Injection):** Cheat Menu được tự động tải về từ GitHub và nạp thẳng vào engine ngay trong vòng lặp nạp kịch bản đầu tiên
 
 ### 3. 🛡️ Tự Động Sửa Lỗi Tức Thì (Instant Auto-Healing Engine)
 - **Tự sửa file Cheat Menu:** Nếu script bị xung đột cú pháp hoặc lỗi cache bytecode (`.rpyc`), hệ thống tự động dọn sạch cache và khôi phục bản sạch chuẩn từ GitHub Cloud.
