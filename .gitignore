@@ -1,0 +1,9 @@
+# Security & Secrets
+github_token.txt
+*.token
+.gh_upload_payload.json
+
+# Bytecode cache
+*.rpyc
+*.pyc
+__pycache__/
