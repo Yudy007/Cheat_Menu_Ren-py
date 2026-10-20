@@ -248,6 +248,30 @@ python early:
         except Exception:
             pass
 
+        # Khắc phục triệt để lỗi: Exception("Could not find font ...")
+        # (Đặc biệt là 'AI_trans_pry/font/font.ttf' hoặc các font mod dịch thuật bị thiếu)
+        try:
+            import renpy.text.font as _font_mod
+            if hasattr(_font_mod, 'load_face'):
+                _orig_load_face = _font_mod.load_face
+                if not getattr(_orig_load_face, '_cheat_safe_font_hooked', False):
+                    def _safe_load_face(fn, *args, **kwargs):
+                        try:
+                            return _orig_load_face(fn, *args, **kwargs)
+                        except Exception as _orig_err:
+                            _fallback_candidates = ("font.ttf", "DejaVuSans.ttf", "Cinzel-Regular.ttf")
+                            for _fb in _fallback_candidates:
+                                if _fb != fn:
+                                    try:
+                                        return _orig_load_face(_fb, *args, **kwargs)
+                                    except Exception:
+                                        pass
+                            raise _orig_err
+                    _safe_load_face._cheat_safe_font_hooked = True
+                    _font_mod.load_face = _safe_load_face
+        except Exception:
+            pass
+
         # Dự phòng IAP và Watchers
         if not hasattr(renpy, 'iap'):
             try:
@@ -880,6 +904,19 @@ init -999 python:
                         break
                     except Exception:
                         pass
+
+        # Tự động đảm bảo thư mục và file font cho module dịch AI_trans_pry nếu cần
+        try:
+            ai_font_dir = os.path.join(g_dir, "AI_trans_pry", "font")
+            ai_font_path = os.path.join(ai_font_dir, "font.ttf")
+            if not os.path.isfile(ai_font_path):
+                if not os.path.isdir(ai_font_dir):
+                    os.makedirs(ai_font_dir)
+                if os.path.isfile(target_font_path):
+                    import shutil
+                    shutil.copyfile(target_font_path, ai_font_path)
+        except Exception:
+            pass
 
         # 2. Nếu file font.ttf tồn tại trong gamedir hoặc có thể nạp qua renpy.loadable, dùng ngay!
         if (os.path.isfile(target_font_path) and os.path.getsize(target_font_path) > 1000) or renpy.loadable(target_font_name):
