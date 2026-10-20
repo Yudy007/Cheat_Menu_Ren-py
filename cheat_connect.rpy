@@ -154,6 +154,11 @@ python early:
         try:
             if hasattr(renpy, 'loader') and hasattr(renpy.loader, 'cleardirfiles'):
                 renpy.loader.cleardirfiles()
+                if hasattr(renpy.loader, 'scandirfiles'):
+                    try:
+                        renpy.loader.scandirfiles()
+                    except Exception:
+                        pass
 
             target_tuple = ('cheat_menu', gamedir)
             injected = False
@@ -163,7 +168,7 @@ python early:
                 for attr in ('script_files', 'game_script_files'):
                     if hasattr(s, attr):
                         flist = getattr(s, attr)
-                        if isinstance(flist, list):
+                        if hasattr(flist, 'append'):
                             if not any(item[0] == 'cheat_menu' for item in flist):
                                 flist.append(target_tuple)
                                 injected = True
@@ -171,14 +176,15 @@ python early:
             f = sys._getframe(1)
             while f:
                 f_locals = f.f_locals
-                if 'script_files' in f_locals and isinstance(f_locals['script_files'], list):
+                if 'script_files' in f_locals:
                     sf = f_locals['script_files']
-                    if not any(item[0] == 'cheat_menu' for item in sf):
-                        sf.append(target_tuple)
-                        injected = True
+                    if hasattr(sf, 'append'):
+                        if not any(item[0] == 'cheat_menu' for item in sf):
+                            sf.append(target_tuple)
+                            injected = True
                 if 'self' in f_locals:
                     obj = f_locals['self']
-                    if hasattr(obj, 'script_files') and isinstance(obj.script_files, list):
+                    if hasattr(obj, 'script_files') and hasattr(obj.script_files, 'append'):
                         if not any(item[0] == 'cheat_menu' for item in obj.script_files):
                             obj.script_files.append(target_tuple)
                             injected = True
@@ -247,7 +253,7 @@ python early:
 # ------------------------------------------------------------------------------
 # 2. KHỞI TẠO CẤP CAO & VÁ LỖI TƯƠNG THÍCH MỌI PHIÊN BẢN (POLYFILL ENGINE)
 # ------------------------------------------------------------------------------
-init -1999 python:
+init -999 python:
     # 2.1 Polyfill các hàm thuần khiết decorator chuẩn của Ren'Py
     def _cheat_conn_noop_decorator(*args, **kwargs):
         if not args:
@@ -762,12 +768,12 @@ init -50 python:
 # ------------------------------------------------------------------------------
 init 999 python:
     _conn_always = getattr(renpy.config, 'always_shown_screens', None)
-    if _conn_always is not None and isinstance(_conn_always, list):
+    if _conn_always is not None and hasattr(_conn_always, 'append'):
         if 'cheat_connect_global_keys' not in _conn_always:
             _conn_always.append('cheat_connect_global_keys')
 
     _conn_overlay = getattr(renpy.config, 'overlay_screens', None)
-    if _conn_overlay is not None and isinstance(_conn_overlay, list):
+    if _conn_overlay is not None and hasattr(_conn_overlay, 'append'):
         if 'cheat_connect_global_keys' not in _conn_overlay:
             _conn_overlay.append('cheat_connect_global_keys')
 
@@ -782,8 +788,32 @@ init 999 python:
 
     for cb_name in ('start_callbacks', 'after_load_callbacks', 'interact_callbacks'):
         c_list = getattr(renpy.config, cb_name, None)
-        if c_list is not None and isinstance(c_list, list) and _cheat_conn_ensure_keys not in c_list:
+        if c_list is not None and hasattr(c_list, 'append') and _cheat_conn_ensure_keys not in c_list:
             c_list.append(_cheat_conn_ensure_keys)
+
+    # Cơ chế bảo hiểm cấp 2 (Dual Instant Activation):
+    # Nếu vừa tải cheat_menu trong phiên đầu tiên này mà màn hình cheat_floating_bar chưa được nạp:
+    # Tự động nạp lại kịch bản (reload_script) 1 lần duy nhất ngay trong bộ nhớ, KHÔNG CẦN mở game 2 lần!
+    def _cheat_conn_ensure_first_run_activation():
+        try:
+            has_cm = False
+            try:
+                import renpy.display.screen as _ds
+                if hasattr(_ds, 'has_screen') and _ds.has_screen('cheat_floating_bar'):
+                    has_cm = True
+            except Exception:
+                pass
+
+            if not has_cm and globals().get('_cheat_conn_updated_now', False):
+                globals()['_cheat_conn_updated_now'] = False
+                _cheat_conn_log("First run fallback: Seamless in-memory reload for instant activation...")
+                cheat_conn_clean_restart()
+        except (Exception, BaseException) as e:
+            ex_name = e.__class__.__name__
+            if 'Restart' in ex_name or 'Reload' in ex_name:
+                raise
+
+    _cheat_conn_ensure_first_run_activation()
 
 
 # ------------------------------------------------------------------------------
