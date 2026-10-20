@@ -74,6 +74,7 @@
 | <kbd>H</kbd> | Ẩn khung thoại (Hide UI) để xem trọn hình nền, CG |
 | <kbd>S</kbd> | Bật / Tắt Tua nhanh không giới hạn (Force Skip Unseen Text) |
 | <kbd>A</kbd> | Bật / Tắt Tự động đọc thoại (Auto-Forward) |
+| <kbd>L</kbd> | Mở Nhật ký thoại & Điểm quay lại tương tác (History Log) |
 | <kbd>Shift</kbd> + <kbd>O</kbd> | Mở Developer Console gõ lệnh Python trực tiếp của Ren'Py |
 | <kbd>Shift</kbd> + <kbd>F11</kbd> | **Tải bản mới nhất từ GitHub Cloud & Tự động sửa lỗi ngay lập tức** |
 | <kbd>Shift</kbd> + <kbd>F10</kbd> | **Xóa sạch Cache Bytecode (`.rpyc`) và khởi động lại game sạch sẽ** |
