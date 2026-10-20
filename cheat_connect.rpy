@@ -98,32 +98,19 @@ python early:
     _cheat_conn_github_conn_url = "https://raw.githubusercontent.com/Yudy007/Cheat_Menu_Ren-py/main/cheat_connect.rpy"
     _cheat_conn_github_font_url = "https://raw.githubusercontent.com/Yudy007/Cheat_Menu_Ren-py/main/font.ttf"
 
-    # Hàm tải file từ GitHub an toàn tuyệt đối qua mạng
+    # Hàm tải file từ GitHub an toàn tuyệt đối qua mạng (100% ngầm, KHÔNG BAO GIỜ mở cửa sổ CMD)
     def _cheat_conn_download_from_github(url, dest_path):
         if not url:
             return False
-        # Cách 1: Dùng os.system với curl.exe (Tương thích 100% mọi bản Python 2 & 3 trên Windows)
+
+        # Cách 1 (Ưu tiên số 1 - Chạy hoàn toàn ngầm không tạo process CMD): Dùng urllib của Python
         try:
-            cmd = 'curl.exe -s -L "%s" -o "%s"' % (url, dest_path)
-            ret = os.system(cmd)
-            if ret == 0 and os.path.isfile(dest_path) and os.path.getsize(dest_path) > 1000:
-                return True
-        except Exception:
-            pass
-        # Cách 2: Dùng subprocess với curl.exe
-        try:
-            import subprocess
-            cmd = ['curl.exe', '-s', '-L', url, '-o', dest_path]
-            ret = subprocess.call(cmd)
-            if ret == 0 and os.path.isfile(dest_path) and os.path.getsize(dest_path) > 1000:
-                return True
-        except Exception:
-            pass
-        # Cách 3: Dùng urllib của Python (Ren'Py 8/Python 3)
-        try:
-            import urllib.request as urllib_req
+            try:
+                import urllib.request as urllib_req
+            except ImportError:
+                import urllib2 as urllib_req
             req = urllib_req.Request(url, headers={'User-Agent': 'RenPy-Cheat-Connector'})
-            resp = urllib_req.urlopen(req, timeout=10)
+            resp = urllib_req.urlopen(req, timeout=12)
             content = resp.read()
             if len(content) > 1000:
                 with open(dest_path, 'wb') as f:
@@ -131,6 +118,27 @@ python early:
                 return True
         except Exception:
             pass
+
+        # Cách 2 (Dự phòng): Dùng curl.exe nhưng BẮT BUỘC ẩn hoàn toàn cửa sổ CMD (CREATE_NO_WINDOW)
+        try:
+            import subprocess
+            cmd = ['curl.exe', '-s', '-L', url, '-o', dest_path]
+            extra_kwargs = {}
+            if sys.platform == 'win32':
+                extra_kwargs['creationflags'] = 0x08000000  # CREATE_NO_WINDOW
+                try:
+                    si = subprocess.STARTUPINFO()
+                    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                    si.wShowWindow = 0  # SW_HIDE
+                    extra_kwargs['startupinfo'] = si
+                except Exception:
+                    pass
+            ret = subprocess.call(cmd, **extra_kwargs)
+            if ret == 0 and os.path.isfile(dest_path) and os.path.getsize(dest_path) > 1000:
+                return True
+        except Exception:
+            pass
+
         return False
 
     # Biến trạng thái toàn cục cho phiên khởi động
@@ -293,18 +301,16 @@ init -99 python:
         except Exception:
             pass
 
-    # Hàm khởi động lại sạch sẽ toàn bộ môi trường Ren'Py
+    # Hàm khởi động lại sạch sẽ toàn bộ môi trường Ren'Py (Nạp lại tại chỗ, KHÔNG BAO GIỜ tắt game)
     def cheat_conn_clean_restart():
         try:
-            if hasattr(renpy, 'utter_restart'):
-                renpy.utter_restart()
-            elif hasattr(renpy, 'reload_script'):
+            if hasattr(renpy, 'reload_script') and callable(renpy.reload_script):
                 renpy.reload_script()
-            else:
-                renpy.quit(relaunch=True)
+            elif hasattr(renpy, 'utter_restart') and callable(renpy.utter_restart):
+                renpy.utter_restart()
         except (Exception, BaseException) as e:
             ex_name = e.__class__.__name__
-            if 'Restart' in ex_name or 'Reload' in ex_name or 'Quit' in ex_name:
+            if 'Restart' in ex_name or 'Reload' in ex_name:
                 raise
 
 
@@ -496,7 +502,17 @@ init -50 python:
                 '-H', 'User-Agent: RenPy-CheatConnect-Yudy007',
                 api_url
             ]
-            proc = subprocess.Popen(get_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            extra_proc_kw = {}
+            if sys.platform == 'win32':
+                extra_proc_kw['creationflags'] = 0x08000000
+                try:
+                    si = subprocess.STARTUPINFO()
+                    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                    si.wShowWindow = 0
+                    extra_proc_kw['startupinfo'] = si
+                except Exception:
+                    pass
+            proc = subprocess.Popen(get_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **extra_proc_kw)
             out, err = proc.communicate()
             if not isinstance(out, str):
                 out = out.decode('utf-8', 'ignore')
@@ -538,7 +554,7 @@ init -50 python:
                 '-d', '@' + temp_json,
                 api_url
             ]
-            proc = subprocess.Popen(put_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            proc = subprocess.Popen(put_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **extra_proc_kw)
             out, err = proc.communicate()
             if not isinstance(out, str):
                 out = out.decode('utf-8', 'ignore')
@@ -755,36 +771,19 @@ init 999 python:
         if 'cheat_connect_global_keys' not in _conn_overlay:
             _conn_overlay.append('cheat_connect_global_keys')
 
-    # Cơ chế Cứu Hộ Dự Phòng: Tự reload 1 lần ngầm nếu Ren'Py yêu cầu biên dịch lại
-    def _cheat_conn_verify_loaded():
+    # Đảm bảo phím tắt cứu hộ luôn khả dụng khi vào game
+    def _cheat_conn_ensure_keys():
         try:
-            has_file = os.path.isfile(_cheat_conn_target_file)
-            screen_loaded = False
-            try:
-                screen_loaded = renpy.has_screen('cheat_floating_bar') or renpy.has_screen('cheat_main_modal')
-            except Exception:
-                screen_loaded = False
-
-            if has_file and not screen_loaded:
-                if hasattr(renpy, 'session') and not renpy.session.get('_cheat_conn_reloaded_once', False):
-                    renpy.session['_cheat_conn_reloaded_once'] = True
-                    _cheat_conn_log("Auto-activating cheat menu via 1-time instant reload...")
-                    cheat_conn_clean_restart()
-                    return
-
-            if not renpy.get_screen('cheat_connect_global_keys'):
-                renpy.show_screen('cheat_connect_global_keys')
-        except (Exception, BaseException) as e:
-            ex_name = e.__class__.__name__
-            if 'Restart' in ex_name or 'Reload' in ex_name:
-                raise
-
-    _cheat_conn_verify_loaded()
+            if hasattr(renpy, 'get_screen') and not renpy.get_screen('cheat_connect_global_keys'):
+                if hasattr(renpy, 'show_screen'):
+                    renpy.show_screen('cheat_connect_global_keys')
+        except Exception:
+            pass
 
     for cb_name in ('start_callbacks', 'after_load_callbacks', 'interact_callbacks'):
         c_list = getattr(renpy.config, cb_name, None)
-        if c_list is not None and isinstance(c_list, list) and _cheat_conn_verify_loaded not in c_list:
-            c_list.append(_cheat_conn_verify_loaded)
+        if c_list is not None and isinstance(c_list, list) and _cheat_conn_ensure_keys not in c_list:
+            c_list.append(_cheat_conn_ensure_keys)
 
 
 # ------------------------------------------------------------------------------
