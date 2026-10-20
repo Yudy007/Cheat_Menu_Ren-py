@@ -3063,11 +3063,8 @@ init -999 python:
                     except Exception:
                         pass
 
-                # Tự động nạp lại kịch bản (Hot-Reload) tức thì ngay trong lần mở game này
-                if hasattr(renpy, 'session') and not renpy.session.get('_cheat_hot_reloaded', False):
-                    renpy.session['_cheat_hot_reloaded'] = True
-                    if hasattr(renpy, 'utter_restart'):
-                        renpy.utter_restart()
+                # Đã cập nhật file cheat_menu.rpy mới nhất từ thư mục master
+                pass
         except Exception:
             pass
 
